@@ -270,6 +270,16 @@ public class JobStore {
 
   /** 独立内容产物与任务一次发布；没有评论request/snapshot，不造假填充外键。 */
   public void publishContent(String id, String token, String artifactId, String artifact) {
+    publishContent(id, token, artifactId, artifact, "content-artifact-v1");
+  }
+
+  /** 新旧内容产物显式匹配冻结协议，原发布租约/步骤/任务事务不变。 */
+  public void publishContent(
+      String id, String token, String artifactId, String artifact, String schema) {
+    boolean full =
+        io.echoinsight.content.ContentFullContract.PROMPT.equals(plan(id).promptVersion());
+    if (!(full ? "content-artifact-v2" : "content-artifact-v1").equals(schema))
+      throw new IllegalArgumentException("Content artifact protocol mismatch");
     tx.executeWithoutResult(
         status -> {
           own(id, token);
@@ -289,9 +299,10 @@ public class JobStore {
           db.update(
               "INSERT INTO"
                   + " analysis_artifact(id,request_id,job_id,snapshot_id,schema_version,artifact_json)"
-                  + " VALUES(?,NULL,?,NULL,'content-artifact-v1',?)",
+                  + " VALUES(?,NULL,?,NULL,?,?)",
               artifactId,
               id,
+              schema,
               artifact);
           db.update(
               "UPDATE analysis_job SET status='SUCCESS',owner_token=NULL,lease_until=NULL WHERE"

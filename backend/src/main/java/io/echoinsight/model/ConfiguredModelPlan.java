@@ -138,6 +138,27 @@ public final class ConfiguredModelPlan {
         base.executionMode());
   }
 
+  /** 完整内容冻结独立协议；每片和汇总仍共用原任务的累计预算，不自动提高费用上限。 */
+  public ModelContract.Plan contentFull() {
+    var base = content();
+    return new ModelContract.Plan(
+        base.providerId(),
+        base.modelVersion(),
+        io.echoinsight.content.ContentFullContract.PROMPT,
+        io.echoinsight.content.ContentFullContract.TAXONOMY,
+        100,
+        base.timeoutMs(),
+        base.maxOutputTokens(),
+        base.unit(),
+        base.priceVersion(),
+        base.inputUnitRate(),
+        base.outputUnitRate(),
+        base.budgetLimit(),
+        base.inputTokenCeiling(),
+        base.responseModel(),
+        base.executionMode());
+  }
+
   /** 仅显式选择背景的新请求采用v4；纯评论和既有任务继续保留v3计划与检查点。 */
   public ModelContract.Plan discussionWithContext() {
     var base = discussion();

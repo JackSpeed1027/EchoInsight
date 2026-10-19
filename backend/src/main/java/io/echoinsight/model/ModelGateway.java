@@ -217,6 +217,33 @@ public class ModelGateway implements AutoCloseable {
         io.echoinsight.content.ContentModelContract.Response::requestId);
   }
 
+  /** 完整内容的MAP/REDUCE只改变业务协议和批次号，复用同一execute与原账本。 */
+  public io.echoinsight.content.ContentModelContract.Response analyzeContentFull(
+      String jobId,
+      String token,
+      ModelContract.Plan plan,
+      io.echoinsight.content.ContentFullContract.Request request) {
+    io.echoinsight.content.ContentFullContract.validateRequest(plan, request);
+    var provider = contentProviders.get(plan.providerId());
+    if (provider == null || !provider.modelVersion().equals(plan.modelVersion()))
+      throw new ModelContract.Failure("MODEL_UNSUPPORTED_VERSION");
+    provider.validatePlan(plan);
+    return execute(
+        jobId,
+        token,
+        plan,
+        request.batchIndex(),
+        request,
+        request.maxInputTokens(),
+        request.maxOutputTokens(),
+        io.echoinsight.content.ContentModelContract.Response.class,
+        () -> provider.analyzeFull(request, Duration.ofMillis(plan.timeoutMs())),
+        result -> io.echoinsight.content.ContentFullContract.validate(request, result),
+        io.echoinsight.content.ContentModelContract.Response::inputTokens,
+        io.echoinsight.content.ContentModelContract.Response::outputTokens,
+        io.echoinsight.content.ContentModelContract.Response::requestId);
+  }
+
   /** 在费用预留前检查v3/v4对应、背景角色和输入总量，禁止背景碰撞评论身份或扩大调用范围。 */
   private void validateContextBoundary(
       ModelContract.Plan plan, DiscussionModelContract.Request request) {

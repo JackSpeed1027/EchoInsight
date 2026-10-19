@@ -33,4 +33,42 @@ class ApiProblemHandlerTest {
     assertThat(new ApiProblemHandler().missingHeader().getBody().message())
         .doesNotContain("Exception", "java.");
   }
+
+  /** 内容容量和费用上界都是固定业务原因，应能直接指导用户缩小范围。 */
+  @Test
+  void displaysSafeContentCapacityAndBudgetReasons() {
+    var handler = new ApiProblemHandler();
+    for (String message :
+        java.util.List.of(
+            "完整分析最多24片，每片100完整段/12000字符；请缩小字幕时间范围或拆分材料，不能静默截取",
+            "原任务预算不足以覆盖一次保守调用上界",
+            "本任务预算不足以覆盖全部计划调用的保守上界，请缩小范围",
+            "处理方式仅支持FULL或PREFIX"))
+      assertThat(
+              handler
+                  .status(new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, message))
+                  .getBody()
+                  .message())
+          .isEqualTo(message);
+  }
+
+  /** 上传编码错误明确展示，任意带密钥/路径的近似文本仍不能进入白名单。 */
+  @Test
+  void explainsContentEncodingWithoutReflectingPrivateReason() {
+    var handler = new ApiProblemHandler();
+    assertThat(
+            handler
+                .status(new ResponseStatusException(HttpStatus.BAD_REQUEST, "文件必须是有效UTF8编码"))
+                .getBody()
+                .message())
+        .contains("UTF8");
+    assertThat(
+            handler
+                .status(
+                    new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "文件必须是有效UTF8编码 secret=D:/private/key"))
+                .getBody()
+                .message())
+        .doesNotContain("secret", "private");
+  }
 }

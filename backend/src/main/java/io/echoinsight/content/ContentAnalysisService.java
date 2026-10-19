@@ -52,6 +52,10 @@ public class ContentAnalysisService {
   /** 1、只读创建时冻结输入；2、复用成功CONTENT步骤，否则调用一次受控模型； 3、在租约保护下保存业务草稿；4、原子发布产物与任务成功，取消后的旧执行者不能写入。 */
   public void run(JobStore.Job job, String token, ModelContract.Plan plan, Runnable check)
       throws Exception {
+    if (ContentFullContract.PROMPT.equals(plan.promptVersion())) {
+      new ContentFullAnalysis(inputs, jobs, gateway, json).run(job, token, plan, check);
+      return;
+    }
     var input = inputs.byJob(job.id());
     var selection = input.frozen().selection();
     Artifact artifact;

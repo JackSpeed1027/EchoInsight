@@ -19,14 +19,24 @@ public class ContentAnalysisController {
 
   /** 用户只给问题/材料/可选业务时间范围，未同意裁剪不能静默处理一部分。 */
   public record Create(
-      String materialId, String instruction, Long fromMs, Long toMs, Boolean allowPartialInput) {}
+      String materialId,
+      String instruction,
+      Long fromMs,
+      Long toMs,
+      Boolean allowPartialInput,
+      String coverageMode) {}
 
   /** POST预检只因范围/正文参数需要请求体，不创建任务或预留费用。 */
   @PostMapping("/preview")
   public ContentAnalysisStore.Preview preview(
       @PathVariable String projectId, @RequestBody Create body) {
     return store.preview(
-        projectId, body.materialId(), body.instruction(), body.fromMs(), body.toMs());
+        projectId,
+        body.materialId(),
+        body.instruction(),
+        body.fromMs(),
+        body.toMs(),
+        body.coverageMode());
   }
 
   /** 原任务与冻结输入原子接受，首次201、同键重发200；更改版本或问题409。 */
@@ -43,7 +53,8 @@ public class ContentAnalysisController {
             body.instruction(),
             body.fromMs(),
             body.toMs(),
-            Boolean.TRUE.equals(body.allowPartialInput()));
+            Boolean.TRUE.equals(body.allowPartialInput()),
+            body.coverageMode());
     return ResponseEntity.status(created.created() ? 201 : 200).body(created.analysis());
   }
 

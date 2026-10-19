@@ -5,6 +5,7 @@ import { readApi, type Page } from './projectApi'
 import { budgetText, taskState } from './taskCenter'
 import {
   contentRange,
+  contentProgressText,
   contentLocation,
   type ContentMaterial,
   type ContentSegment,
@@ -24,6 +25,7 @@ const title = ref(''),
   source = ref(''),
   file = ref<File | null>(null),
   uploading = ref(false)
+const coverageMode = ref<'FULL' | 'PREFIX'>('FULL')
 const question = ref('总结这份材料的主要内容，给出原文依据，并说明信息不足之处')
 const from = ref<string | number>(''),
   to = ref<string | number>(''),
@@ -33,6 +35,7 @@ const active = ref<ContentAnalysis | null>(null),
   busy = ref(false),
   loading = ref(false),
   error = ref(''),
+  questionError = ref(''),
   notice = ref('')
 const raw = ref<Page<ContentSegment> | null>(null),
   rawPage = ref(1),
@@ -44,6 +47,7 @@ const history = ref<Page<{
   instruction: string
   status: string
   createdAt: string
+  coverageMode?: string
 }> | null>(null)
 const historyPage = ref(1)
 let generation = 0,
@@ -70,6 +74,7 @@ async function load() {
   stop()
   loading.value = true
   error.value = ''
+  questionError.value = ''
   active.value = null
   preview.value = null
   selected.value = null
@@ -197,6 +202,7 @@ async function loadRaw() {
 }
 /** 表单变更使旧范围同意失效，不能拿另一个问题的预检结果提交。 */
 function invalidate() {
+  questionError.value = ''
   preview.value = null
   consent.value = false
   previewGeneration++
@@ -209,13 +215,14 @@ function body() {
     instruction: question.value.trim(),
     ...contentRange(from.value, to.value),
     allowPartialInput: consent.value,
+    coverageMode: coverageMode.value,
   }
 }
 /** 只读预检，清楚显示范围、遗漏和费用上界，没有模型调用。 */
 async function inspect() {
   const version = ++previewGeneration,
     projectVersion = generation
-  error.value = ''
+  questionError.value = ''
   try {
     const result = await readApi<ContentPreview>(`${base()}/content-analyses/preview`, {
       method: 'POST',
@@ -227,7 +234,7 @@ async function inspect() {
     return true
   } catch (caught) {
     if (version === previewGeneration && projectVersion === generation)
-      error.value = caught instanceof Error ? caught.message : '范围核对失败。'
+      questionError.value = caught instanceof Error ? caught.message : '范围核对失败。'
     return false
   }
 }
@@ -239,7 +246,7 @@ async function submit() {
   try {
     if (!(await inspect())) return
     if (preview.value?.requiresPartialConsent && !consent.value) {
-      error.value = '请缩小范围，或明确同意仅处理当前选入原文。'
+      questionError.value = '请缩小范围，或明确同意仅处理当前选入原文。'
       return
     }
     const data = body(),
@@ -257,7 +264,7 @@ async function submit() {
     await loadHistory()
   } catch (caught) {
     if (version === generation)
-      error.value = caught instanceof Error ? caught.message : '分析未接受。'
+      questionError.value = caught instanceof Error ? caught.message : '分析未接受。'
   } finally {
     if (version === generation) busy.value = false
   }
@@ -434,6 +441,13 @@ onUnmounted(() => {
       <label
         >你想了解什么<textarea v-model="question" maxlength="1000" rows="3" @input="invalidate" />
       </label>
+      <label
+        >处理范围
+        <select v-model="coverageMode" @change="invalidate">
+          <option value="FULL">完整处理所选范围</option>
+          <option value="PREFIX">仅分析前部（有限预览）</option>
+        </select>
+      </label>
       <div v-if="timed" class="content-range">
         <label
           >字幕起点（秒，可空）<input
@@ -451,7 +465,13 @@ onUnmounted(() => {
             @input="invalidate"
         /></label>
       </div>
-      <p class="small">一次最多40完整段、12000字符。超出范围明确说明，不将材料前缀当全篇理解。</p>
+      <p class="small" v-if="coverageMode === 'FULL'">
+        完整方式按原段分片后汇总，最多24片，每片100段/12000字符；字幕起止时间限定本次范围。超出容量或预算会明确拒绝。
+      </p>
+      <p class="small" v-else>
+        有限预览最多40完整段/12000字符。只处理前部，不将材料前缀当全篇理解。
+      </p>
+      <p v-if="questionError" role="alert" class="error">{{ questionError }}</p>
       <button type="button" class="quiet" :disabled="busy" @click="inspect">先核对处理范围</button>
       <div v-if="preview" class="content-preview">
         <p>
@@ -466,7 +486,12 @@ onUnmounted(() => {
           {{
             preview.sourceMode === 'MOCK' ? '免费结构演示，不生成语义结论' : '将执行模型内容分析'
           }}
-          · 单次最多预留{{ budgetText(preview.reservationUnits, preview.budgetUnit) }}
+          · 本任务计划{{ preview.plannedCalls }}次调用，全部调用费用上界{{
+            budgetText(preview.reservationUnits, preview.budgetUnit)
+          }}
+          <span v-if="preview.input.fullPlan"
+            >（{{ preview.input.fullPlan.chunks.length }}次分片＋1次汇总；免费模式不出站）</span
+          >
         </p>
         <p v-if="!preview.budgetSufficient" class="error">预算不足，不能提交。</p>
         <label v-if="preview.requiresPartialConsent"
@@ -500,7 +525,10 @@ onUnmounted(() => {
       </details>
     </section>
     <section v-if="active" class="surface content-result">
-      <h3>本次内容问题 · {{ taskState(active.status) }}</h3>
+      <h3>
+        本次内容问题 · {{ active.input.fullPlan ? '完整范围' : '有限预览' }} ·
+        {{ taskState(active.status) }}
+      </h3>
       <p>
         <strong>{{ active.instruction }}</strong>
       </p>
@@ -513,6 +541,7 @@ onUnmounted(() => {
         {{ describeFailure(active.errorCode).message }}
         {{ describeFailure(active.errorCode).action }}
       </p>
+      <p v-if="active.progress" role="status">{{ contentProgressText(active.progress) }}</p>
       <button type="button" class="quiet" @click="refreshCurrent">重新查询状态</button>
       <TaskControlPanel
         v-if="active.status !== 'SUCCESS'"
@@ -521,7 +550,10 @@ onUnmounted(() => {
         :task-id="active.jobId"
         @changed="refreshCurrent"
       />
-      <ExecutionDetails :job-id="active.jobId" :status="active.status" />
+      <details>
+        <summary>查看费用与执行记录</summary>
+        <ExecutionDetails :job-id="active.jobId" :status="active.status" />
+      </details>
       <template v-if="active.artifact">
         <p v-if="active.artifact.sourceMode === 'STRUCTURAL_DEMO'" class="scope-copy">
           这是结构演示，只展示材料和范围，尚未执行语义分析。
@@ -554,12 +586,42 @@ onUnmounted(() => {
             </blockquote>
           </details>
         </article>
+        <details v-if="active.artifact.processing?.chunks.length">
+          <summary>查看全部分段归纳（{{ active.artifact.processing.chunks.length }}片）</summary>
+          <p class="small">这是逐片生成的中间摘要，可能有遗漏或误读，不能替代原文。</p>
+          <article
+            v-for="chunk in active.artifact.processing.chunks"
+            :key="chunk.index"
+            class="content-finding"
+          >
+            <h4>第{{ chunk.index + 1 }}片</h4>
+            <div v-for="(finding, index) in chunk.findings" :key="index">
+              <strong>{{ finding.title }}</strong>
+              <p class="source-text">{{ finding.explanation }}</p>
+              <details>
+                <summary>回看该片引用的原文</summary>
+                <blockquote v-for="id in finding.evidenceIds" :key="id">
+                  <template
+                    v-for="segment in active.artifact.evidence.filter((item) => item.id === id)"
+                    :key="segment.id"
+                  >
+                    <strong>{{ contentLocation(segment) }}</strong>
+                    <p class="source-text">{{ segment.text }}</p>
+                  </template>
+                </blockquote>
+              </details>
+            </div>
+            <ul>
+              <li v-for="note in chunk.uncertainties" :key="note">{{ note }}</li>
+            </ul>
+          </article>
+        </details>
         <h4>仍需核对的信息</h4>
         <ul>
           <li v-for="note in active.artifact.uncertainties" :key="note">{{ note }}</li>
         </ul>
         <details>
-          <summary>本次所用全部原文及边界</summary>
+          <summary>本次纳入的原文及边界</summary>
           <ul>
             <li v-for="note in active.artifact.limitations" :key="note">{{ note }}</li>
           </ul>
@@ -580,7 +642,10 @@ onUnmounted(() => {
           @click="open(item.jobId)"
         >
           {{ item.instruction }} · {{ taskState(item.status)
-          }}<small>{{ item.title }} · {{ item.createdAt }}</small>
+          }}<small
+            >{{ item.coverageMode === 'FULL' ? '完整范围' : '有限预览' }} · {{ item.title }} ·
+            {{ item.createdAt }}</small
+          >
         </button>
       </div>
       <div v-if="history.totalPages > 1" class="pagination">

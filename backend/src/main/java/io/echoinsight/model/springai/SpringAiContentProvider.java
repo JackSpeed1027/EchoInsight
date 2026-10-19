@@ -1,6 +1,7 @@
 /* 文件职责：单次Spring AI内容响应转换；严格解析JSON并提取真实用量，不保存任务或自动重试。 */
 package io.echoinsight.model.springai;
 
+import io.echoinsight.content.ContentFullContract;
 import io.echoinsight.content.ContentModelContract;
 import io.echoinsight.model.ModelContract;
 import java.time.Duration;
@@ -40,8 +41,10 @@ public final class SpringAiContentProvider implements ContentModelContract.Provi
     if (!id().equals(plan.providerId())
         || !modelVersion.equals(plan.modelVersion())
         || !responseModel.equals(plan.expectedResponseModel())
-        || !ContentModelContract.PROMPT.equals(plan.promptVersion())
-        || !ContentModelContract.TAXONOMY.equals(plan.taxonomyVersion()))
+        || !(ContentModelContract.PROMPT.equals(plan.promptVersion())
+                && ContentModelContract.TAXONOMY.equals(plan.taxonomyVersion())
+            || ContentFullContract.PROMPT.equals(plan.promptVersion())
+                && ContentFullContract.TAXONOMY.equals(plan.taxonomyVersion())))
       throw new ModelContract.Failure("MODEL_UNSUPPORTED_VERSION");
   }
 
@@ -51,7 +54,21 @@ public final class SpringAiContentProvider implements ContentModelContract.Provi
       ContentModelContract.Request request, Duration timeout) {
     if (timeout == null || timeout.isNegative() || timeout.isZero())
       throw new IllegalArgumentException("Invalid timeout");
-    var response = model.call(ContentPrompt.build(request, modelVersion));
+    return extract(model.call(ContentPrompt.build(request, modelVersion)));
+  }
+
+  /** 完整内容每片/汇总仍只出站一次，超时及发送状态由原网关负责。 */
+  @Override
+  public ContentModelContract.Response analyzeFull(
+      ContentFullContract.Request request, Duration timeout) {
+    if (timeout == null || timeout.isNegative() || timeout.isZero())
+      throw new IllegalArgumentException("Invalid timeout");
+    return extract(model.call(ContentFullPrompt.build(request, modelVersion)));
+  }
+
+  /** 共用同一响应元数据/严格JSON验证，不复制另一套收费或供应商错误处理。 */
+  private ContentModelContract.Response extract(
+      org.springframework.ai.chat.model.ChatResponse response) {
     if (response == null || response.getResults().size() != 1 || response.hasToolCalls())
       throw failure("MODEL_RESPONSE_ENVELOPE");
     var generation = response.getResult();

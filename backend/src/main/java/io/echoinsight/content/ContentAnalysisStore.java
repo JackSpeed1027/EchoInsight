@@ -45,7 +45,15 @@ public class ContentAnalysisStore {
   }
 
   /** 材料元数据与正文范围一起冻结；旧任务不读取新版本、标题或来源说明。 */
-  public record Frozen(ContentMaterialStore.Summary material, ContentSelection selection) {}
+  public record Frozen(
+      ContentMaterialStore.Summary material,
+      ContentSelection selection,
+      ContentChunkPlan fullPlan) {
+    /** 历史前缀输入保留原含义，缺失fullPlan不推断为完整方式。 */
+    public Frozen(ContentMaterialStore.Summary material, ContentSelection selection) {
+      this(material, selection, null);
+    }
+  }
 
   /** 输入资格与收费预检，未截取可完整纳入，否则先明确同意有限输入。 */
   public record Preview(
@@ -56,7 +64,9 @@ public class ContentAnalysisStore {
       String budgetUnit,
       boolean budgetSufficient,
       boolean requiresPartialConsent,
-      List<String> notes) {}
+      List<String> notes,
+      int plannedCalls,
+      long perCallReservationUnits) {}
 
   /** 已保存的问题和不可变输入，实际状态另读原任务。 */
   public record Input(
@@ -79,7 +89,17 @@ public class ContentAnalysisStore {
       String status,
       String errorCode,
       String createdAt,
-      JsonNode artifact) {}
+      JsonNode artifact,
+      Progress progress) {}
+
+  /** 完成数读取原model_batch，不创建第二进度表；免费结构演示的语义完成数始终为0。 */
+  public record Progress(
+      int plannedChunks,
+      int completedChunks,
+      String synthesisStatus,
+      int plannedCalls,
+      int successfulCalls,
+      String phase) {}
 
   /** 历史列表只含摘要，不下载所有原文与报告。 */
   public record Summary(
@@ -89,23 +109,39 @@ public class ContentAnalysisStore {
       String instruction,
       String status,
       String errorCode,
-      String createdAt) {}
+      String createdAt,
+      String coverageMode) {}
 
-  /** 只读核对材料和可用范围，不初始化账本或创建任务。 */
+  /** 兼容旧调用，未指定方式时仍为前缀，不改旧幂等输入或提示版本。 */
   @Transactional(readOnly = true)
   public Preview preview(String p, String materialId, String instruction, Long from, Long to) {
+    return preview(p, materialId, instruction, from, to, null);
+  }
+
+  /** 1、核对明确版本/范围；2、冻结原文分片；3、预检全部调用上界；4、不派工或初始化账本。 */
+  @Transactional(readOnly = true)
+  public Preview preview(
+      String p, String materialId, String instruction, Long from, Long to, String coverageMode) {
     validateInstruction(instruction);
+    boolean full = fullMode(coverageMode);
     var material = materials.get(p, materialId);
-    var selected = ContentSelection.select(material, from, to);
-    var plan = plans.content();
-    long reservation =
+    var selected =
+        full
+            ? ContentSelection.full(material, from, to)
+            : ContentSelection.select(material, from, to);
+    var chunkPlan = full ? ContentChunkPlan.create(selected) : null;
+    var plan = full ? plans.contentFull() : plans.content();
+    int calls = full ? chunkPlan.chunks().size() + 1 : 1;
+    long perCall =
         "MOCK".equals(plan.reportMode())
             ? 0
             : Math.addExact(
                 Math.multiplyExact((long) plan.inputTokenCeiling(), plan.inputUnitRate()),
                 Math.multiplyExact((long) plan.maxOutputTokens(), plan.outputUnitRate()));
+    if (perCall > Long.MAX_VALUE / calls) throw invalid("全部调用费用上界溢出，不能接受任务");
+    long reservation = perCall * calls;
     return new Preview(
-        new Frozen(material.summary(), selected),
+        new Frozen(material.summary(), selected, chunkPlan),
         plan.reportMode(),
         reservation,
         plan.budgetLimit(),
@@ -113,9 +149,13 @@ public class ContentAnalysisStore {
         reservation <= plan.budgetLimit(),
         selected.truncated(),
         List.of(
-            "仅分析本次选入的文本/字幕原文，没有评论、画面或音频，不判断观众立场或认证作者意图。",
-            "最多40完整段、12000个UTF16字符，超出按原序取前缀；时间窗口保留相交字幕整段。",
-            "结构演示只展示输入与定位，不生成语义结论；真实模型调用另受原任务预算约束。"));
+            "仅处理所选文本/字幕，没有评论、画面或音频，来源说明不是创作者身份认证。",
+            full
+                ? "完整方式逐片纳入所选范围，最多24片，再汇总全部成功摘要；压缩可能损失细节，输入覆盖不等于语义准确。"
+                : "有限方式最多40完整段/12000字符，按原顺序取前缀，遗漏必须明确同意。",
+            "费用为全部计划调用的保守上界，不是实际报价扣款；失败/未知后不会自动再次付费。"),
+        calls,
+        perCall);
   }
 
   /** 1、项目锁先于首次一致性读；2、重发比较原始输入；3、重新预检/冻结当前明确版本； 4、原任务与输入绑定同事务接受，后台只看到完整提交，未进行任何网络调用。 */
@@ -128,13 +168,31 @@ public class ContentAnalysisStore {
       Long from,
       Long to,
       boolean allowPartial) {
+    return create(p, key, materialId, instruction, from, to, allowPartial, null);
+  }
+
+  /** 完整与有限方式是不同输入；旧方式的幂等指纹保持不变，新方式在接受前核对全量预算。 */
+  @Transactional
+  public Created create(
+      String p,
+      String key,
+      String materialId,
+      String instruction,
+      Long from,
+      Long to,
+      boolean allowPartial,
+      String coverageMode) {
+    boolean full = fullMode(coverageMode);
     ContentMaterialStore.validateKey(key);
     validateInstruction(instruction);
     projects.lock(p);
     String question = instruction.strip();
     String requestHash =
         ReferenceMaterialStore.hash(
-            encode(Arrays.asList(materialId, question, from, to, allowPartial)));
+            encode(
+                full
+                    ? Arrays.asList(materialId, question, from, to, allowPartial, "FULL")
+                    : Arrays.asList(materialId, question, from, to, allowPartial)));
     var old =
         db.queryForList(
             "SELECT job_id,request_sha256 FROM content_analysis_input WHERE project_id=? AND"
@@ -146,14 +204,16 @@ public class ContentAnalysisStore {
         throw conflict("该请求键已用于其他内容版本、问题或范围");
       return new Created(get(p, (String) old.getFirst().get("job_id")), false);
     }
-    var prepared = preview(p, materialId, question, from, to);
+    var prepared = preview(p, materialId, question, from, to, coverageMode);
     if (prepared.input().selection().segments().isEmpty()) throw invalid("所选范围没有正文，请调整材料或时间范围");
     if (prepared.requiresPartialConsent() && !allowPartial)
       throw invalid("材料超出本次输入上限，请缩小时间范围或明确同意有限输入");
-    if (!prepared.budgetSufficient()) throw invalid("原任务预算不足以覆盖一次保守调用上界");
+    if (!prepared.budgetSufficient())
+      throw invalid(full ? "本任务预算不足以覆盖全部计划调用的保守上界，请缩小范围" : "原任务预算不足以覆盖一次保守调用上界");
     var job =
         jobs.createContent(
-            "content:" + ReferenceMaterialStore.hash(p + "\n" + key), plans.content());
+            "content:" + ReferenceMaterialStore.hash(p + "\n" + key),
+            full ? plans.contentFull() : plans.content());
     String frozen = encode(prepared.input());
     db.update(
         "INSERT INTO"
@@ -181,7 +241,7 @@ public class ContentAnalysisStore {
       var rows =
           db.queryForList(
               "SELECT artifact_json FROM analysis_artifact WHERE job_id=? AND"
-                  + " schema_version='content-artifact-v1'",
+                  + " schema_version IN ('content-artifact-v1','content-artifact-v2')",
               String.class,
               id);
       if (rows.size() != 1) throw new IllegalStateException("Missing content artifact");
@@ -199,7 +259,38 @@ public class ContentAnalysisStore {
         job.status(),
         job.lastErrorCode(),
         input.createdAt(),
-        artifact);
+        artifact,
+        progress(id, input.frozen()));
+  }
+
+  /** 只读取最多25个原批次状态，取消/失败时同样保留已成功片数。 */
+  private Progress progress(String id, Frozen frozen) {
+    if (frozen.fullPlan() == null) return null;
+    int count = frozen.fullPlan().chunks().size(), maps = 0, successful = 0;
+    String synthesis = "NOT_STARTED";
+    for (var row :
+        db.queryForList(
+            "SELECT batch_index,status FROM model_batch WHERE job_id=? ORDER BY batch_index", id)) {
+      int index = ((Number) row.get("batch_index")).intValue();
+      String state = (String) row.get("status");
+      if (index < 0 || index > count)
+        throw new IllegalStateException("Invalid content batch identity");
+      if ("SUCCEEDED".equals(state)) {
+        successful++;
+        if (index < count) maps++;
+      }
+      if (index == count) synthesis = state;
+    }
+    boolean demo = "MOCK".equals(jobs.plan(id).reportMode());
+    return new Progress(
+        count,
+        maps,
+        demo ? "NOT_EXECUTED" : synthesis,
+        count + 1,
+        successful,
+        demo
+            ? "STRUCTURAL_DEMO"
+            : "SUCCEEDED".equals(synthesis) ? "COMPLETE" : maps == count ? "REDUCE" : "MAP");
   }
 
   /** 工作者只读取自己已领取任务的冻结输入，绝不查项目最新材料来替代。 */
@@ -221,7 +312,7 @@ public class ContentAnalysisStore {
             "SELECT"
                 + " c.job_id,c.material_id,JSON_UNQUOTE(JSON_EXTRACT(c.selection_json,'$.material.title'))"
                 + " title,c.instruction,j.status,j.last_error_code,DATE_FORMAT(c.created_at,'%Y-%m-%d"
-                + " %H:%i:%s') created_time"
+                + " %H:%i:%s') created_time,j.prompt_version"
                 + where
                 + " ORDER BY c.created_at DESC,c.job_id DESC LIMIT ? OFFSET ?",
             (r, n) ->
@@ -232,7 +323,8 @@ public class ContentAnalysisStore {
                     r.getString(4),
                     r.getString(5),
                     r.getString(6),
-                    r.getString(7)),
+                    r.getString(7),
+                    ContentFullContract.PROMPT.equals(r.getString(8)) ? "FULL" : "PREFIX"),
             p,
             scope,
             size,
@@ -259,12 +351,14 @@ public class ContentAnalysisStore {
               if (!ReferenceMaterialStore.hash(body).equals(r.getString("selection_sha256")))
                 throw new IllegalStateException("Content frozen input hash mismatch");
               try {
+                var frozen = json.readValue(body, Frozen.class);
+                if (frozen.fullPlan() != null) frozen.fullPlan().verify(frozen.selection());
                 return new Input(
                     id,
                     r.getString("project_id"),
                     r.getString("material_id"),
                     r.getString("instruction"),
-                    json.readValue(body, Frozen.class),
+                    frozen,
                     r.getString("created_time"));
               } catch (java.io.IOException e) {
                 throw new IllegalStateException(e);
@@ -273,6 +367,13 @@ public class ContentAnalysisStore {
             args.toArray());
     if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "内容分析不存在");
     return rows.getFirst();
+  }
+
+  /** 仅支持两个业务处理范围，未知值不静默退回前缀。 */
+  private boolean fullMode(String mode) {
+    if (mode == null || "PREFIX".equals(mode)) return false;
+    if ("FULL".equals(mode)) return true;
+    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "处理方式仅支持FULL或PREFIX");
   }
 
   /** 问题是数据，最多1000字；不以关键词悄悄跳到评论/采集Agent流程。 */

@@ -53,6 +53,11 @@ public final class ContentModelContract {
     void validatePlan(ModelContract.Plan plan);
 
     Response analyze(Request request, Duration timeout);
+
+    /** 旧供应商默认不支持新协议，不隐式复用旧提示或改变旧检查点身份。 */
+    default Response analyzeFull(ContentFullContract.Request request, Duration timeout) {
+      throw new ModelContract.Failure("MODEL_UNSUPPORTED_VERSION");
+    }
   }
 
   /** 1、校验用量和响应边界；2、验证结论枚举/文字；3、验证唯一、闭合的引用；4、拒绝空/超长结果。 Java验证结构，不声称可以认证结论含义、作者身份或事实真伪。 */

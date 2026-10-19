@@ -49,6 +49,25 @@ public record ContentSelection(
         List.copyOf(selected));
   }
 
+  /** 完整方式选择明确窗口内全部原段，不在末尾截取；容量由独立分片计划在派工前校验。 */
+  public static ContentSelection full(ContentMaterialStore.Material material, Long from, Long to) {
+    var all = candidates(material, from, to);
+    var summary = material.summary();
+    return new ContentSelection(
+        "content-full-window-v1",
+        summary.id(),
+        summary.rawSha256(),
+        summary.segmentsSha256(),
+        from,
+        to,
+        material.segments().size(),
+        all.size(),
+        material.segments().size() - all.size(),
+        0,
+        all.stream().mapToInt(x -> x.text().length()).sum(),
+        List.copyOf(all));
+  }
+
   /** 范围为[fromMs,toMs)，保留相交段整段原文；文本不能被当作带时间的媒体。 */
   public static List<ContentMaterialParser.Segment> candidates(
       ContentMaterialStore.Material material, Long from, Long to) {

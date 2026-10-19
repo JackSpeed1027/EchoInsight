@@ -35,8 +35,27 @@ export type ContentSelection = {
   selectedChars: number
   segments: ContentSegment[]
 }
+export type ContentChunkPlan = {
+  version: string
+  chunks: { index: number; segmentIds: string[]; textChars: number }[]
+  segmentCount: number
+  textChars: number
+}
+export type ContentInput = {
+  material: ContentMaterial
+  selection: ContentSelection
+  fullPlan?: ContentChunkPlan | null
+}
+export type ContentProgress = {
+  plannedChunks: number
+  completedChunks: number
+  synthesisStatus: string
+  plannedCalls: number
+  successfulCalls: number
+  phase: string
+}
 export type ContentPreview = {
-  input: { material: ContentMaterial; selection: ContentSelection }
+  input: ContentInput
   sourceMode: string
   reservationUnits: number
   budgetUnits: number
@@ -44,6 +63,8 @@ export type ContentPreview = {
   budgetSufficient: boolean
   requiresPartialConsent: boolean
   notes: string[]
+  plannedCalls: number
+  perCallReservationUnits: number
 }
 export type ContentArtifact = {
   schemaVersion: string
@@ -63,16 +84,28 @@ export type ContentArtifact = {
   uncertainties: string[]
   evidence: ContentSegment[]
   limitations: string[]
+  processing?: {
+    strategy: string
+    plannedChunks: number
+    completedChunks: number
+    synthesisStatus: string
+    chunks: {
+      index: number
+      findings: { title: string; kind: string; explanation: string; evidenceIds: string[] }[]
+      uncertainties: string[]
+    }[]
+  }
 }
 export type ContentAnalysis = {
   jobId: string
   projectId: string
   instruction: string
-  input: { material: ContentMaterial; selection: ContentSelection }
+  input: ContentInput
   status: string
   errorCode: string | null
   createdAt: string
   artifact: ContentArtifact | null
+  progress?: ContentProgress | null
 }
 /** 两端同时提供，严格拒绝NaN/无穷/负值/半个范围；服务端仍再次校验。 */
 export function contentRange(
@@ -98,4 +131,20 @@ export function contentLocation(segment: ContentSegment): string {
   return segment.startMs != null && segment.endMs != null
     ? `${(segment.startMs / 1000).toFixed(3)}～${(segment.endMs / 1000).toFixed(3)}秒`
     : `原文字符[${segment.startChar}, ${segment.endChar})`
+}
+
+/** 进度取自原任务批次；计划、已执行和已理解分开，免费模式不显示虚假的100%。 */
+export function contentProgressText(progress?: ContentProgress | null): string {
+  if (!progress) return ''
+  if (progress.phase === 'STRUCTURAL_DEMO')
+    return `已规划${progress.plannedChunks}片；免费演示尚未执行分片语义分析或汇总。`
+  const suffix =
+    progress.phase === 'COMPLETE'
+      ? '汇总已完成'
+      : progress.synthesisStatus === 'OUTCOME_UNKNOWN'
+        ? '汇总费用未决，请查看任务说明'
+        : progress.phase === 'REDUCE'
+          ? '等待或正在汇总'
+          : '尚未完成全部分片'
+  return `已完成${progress.completedChunks}/${progress.plannedChunks}片；${suffix}。输入处理完成不等于语义已验证。`
 }
