@@ -121,6 +121,22 @@ class BilibiliCollectionTest {
     assertThat(collector.exitCode(7)).isEqualTo("SOURCE_NOT_FOUND");
   }
 
+  /** stderr先超限也必须返回超限，而非另一条stdout管道关闭造成的通用流错误。 */
+  @Test
+  void stderrOverflowKeepsOutputLimitReason() {
+    assertThatThrownBy(() -> new BilibiliCliCollector(settings()).run(child("stderrOverflow")))
+        .isInstanceOf(CollectionFailure.class)
+        .hasMessage("TOOL_OUTPUT_LIMIT");
+  }
+
+  /** 两个管道并发写出，任一超限触发终止；Linux/Windows的Stream closed差异不能改变业务原因。 */
+  @Test
+  void concurrentOutputOverflowPreservesPrimaryFailure() {
+    assertThatThrownBy(() -> new BilibiliCliCollector(settings()).run(child("dualOverflow")))
+        .isInstanceOf(CollectionFailure.class)
+        .hasMessage("TOOL_OUTPUT_LIMIT");
+  }
+
   /** 超过总时长的子进程被终止，工作线程可以返回而非永久等待管道。 */
   @Test
   void terminatesTimedOutChildProcess() {
@@ -160,6 +176,20 @@ class BilibiliCollectionTest {
           System.out.print("[]");
         }
         case "overflow" -> System.out.write(new byte[BilibiliCliAdapter.MAX_JSON_BYTES + 8192]);
+        case "stderrOverflow" -> System.err.write(new byte[128 * 1024]);
+        case "dualOverflow" -> {
+          Thread other =
+              Thread.ofPlatform()
+                  .start(
+                      () -> {
+                        try {
+                          System.err.write(new byte[128 * 1024]);
+                        } catch (Exception ignored) {
+                        }
+                      });
+          System.out.write(new byte[BilibiliCliAdapter.MAX_JSON_BYTES + 8192]);
+          other.join();
+        }
         case "refused" -> System.exit(2);
         case "sleep" -> Thread.sleep(30_000);
         default -> System.exit(1);

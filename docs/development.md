@@ -17,7 +17,7 @@
 
 Node 已加入用户 PATH，原始值备份在 runtime/backups/user-path-before-node.json。重启 IDEA 后，新终端才能继承；也可加载 scripts/env.ps1，仅对当前终端生效。
 
-按用户最新决定使用现有 MySQL，不安装 Docker/WSL。此前新增的 MySQL 8.4 文件保留在 runtime/unused-tools/mysql-8.4.10-winx64，数据位于 runtime/mysql/data；3307 实例已停止，项目脚本不会启动它，也不会被旧环境按版本扫描的脚本选中。旧 MySQL、其他项目库和账号未被替换。
+按用户最新决定使用现有 MySQL，不安装 Docker/WSL。此前新增的 MySQL 8.4 文件保留在 runtime/unused-tools/mysql-8.4.10-winx64，数据位于 runtime/mysql/data；3309 实例已停止，项目脚本不会启动它，也不会被旧环境按版本扫描的脚本选中。旧 MySQL、其他项目库和账号未被替换。
 
 ## 3. IDEA 打开及调试
 
@@ -161,7 +161,7 @@ python tools/evaluate_stance.py --cases runtime/private-review-new/review-cases.
 
 ## 12. 第68～77轮：任务中心、取消与Git上传
 
-当前V24/37张表（含历史表），307后端（134单元＋173 MySQL集成）、20前端行为、20离线工具测试，80业务API。新增TaskPolicy/ProjectTaskQuery/TaskControlService/ProjectTaskController及TaskControlPanel/ProjectTaskCenter；TaskControlWorkflowIT使用task-control-it工作空间与execution-scope、内存平台页/模型账本模拟，不连接真实平台或付费供应商。
+当前V24/37张表（含历史表），309后端（136单元＋173 MySQL集成）、20前端行为、20离线工具测试，80业务API。新增TaskPolicy/ProjectTaskQuery/TaskControlService/ProjectTaskController及TaskControlPanel/ProjectTaskCenter；TaskControlWorkflowIT使用task-control-it工作空间与execution-scope、内存平台页/模型账本模拟，不连接真实平台或付费供应商。
 
 运行方式不变。在项目导航进入“任务中心”，读取分析/采集详情后明确取消、继续或安全重试。自然语言分析当前任务也显示控制面板；取消后旧轮询终止。取消不等于供应商不计费；SENT/UNKNOWN仍保留预留，禁止直接继续。成功模型片、原步骤、采集页和输入版本不清理。完整规则和每轮作用见基准§17，全部URL/类/关系见API§24。
 
@@ -173,3 +173,6 @@ python tools/evaluate_stance.py --cases runtime/private-review-new/review-cases.
 
 
 浏览器验收发现MySQL5.7在JSON标题与ASCII采集URL的UNION中将中文降为问号；原快照UTF8正文/哈希不变，查询两侧显式CONVERT USING utf8mb4修正，并在MySQL集成断言中文标题原文。首次构建通过不掩盖这个界面缺陷，修复后回归日志另存round77-full-verify-unicode.log。
+
+
+第77轮首次GitHub Linux CI发现CLI输出超限后，终止子进程导致另一管道Stream closed，遮蔽已确认的TOOL_OUTPUT_LIMIT。使用每次执行共享的原子标记，在终止前记录超限并优先保留该原因；普通流失败/超时规则不放宽。新增stderr超限与双管道并发超限子进程回归，最终309后端（136单元＋173集成）；失败日志round77-ci-initial-backend.log保留，修复不跳过原测试。

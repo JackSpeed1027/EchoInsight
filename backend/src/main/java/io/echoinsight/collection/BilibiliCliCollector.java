@@ -11,6 +11,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.stereotype.Component;
 
 /** 不使用 shell，不接收任意命令参数，也不继承 Cookie/代理等用户环境变量。 */
@@ -92,6 +93,8 @@ public class BilibiliCliCollector {
             "never",
             "--quiet"));
     Process process = null;
+    // 两个管道共用超限事实；Linux强制终止进程后另一管道可能报Stream closed，不能掩盖超限根因。
+    AtomicBoolean outputLimitReached = new AtomicBoolean(false);
     try {
       ProcessBuilder builder = new ProcessBuilder(command);
       builder.environment().clear();
@@ -104,13 +107,20 @@ public class BilibiliCliCollector {
         var stdout =
             readers.submit(
                 () ->
-                    readBounded(child.getInputStream(), BilibiliCliAdapter.MAX_JSON_BYTES, child));
-        var stderr = readers.submit(() -> readBounded(child.getErrorStream(), STDERR_LIMIT, child));
+                    readBounded(
+                        child.getInputStream(),
+                        BilibiliCliAdapter.MAX_JSON_BYTES,
+                        child,
+                        outputLimitReached));
+        var stderr =
+            readers.submit(
+                () -> readBounded(child.getErrorStream(), STDERR_LIMIT, child, outputLimitReached));
         boolean finished = process.waitFor(settings.timeoutSeconds(), TimeUnit.SECONDS);
         if (!finished) {
           process.destroyForcibly();
           process.waitFor(5, TimeUnit.SECONDS);
-          throw new CollectionFailure("TOOL_TIMEOUT");
+          throw new CollectionFailure(
+              outputLimitReached.get() ? "TOOL_OUTPUT_LIMIT" : "TOOL_TIMEOUT");
         }
         Captured output = stdout.get(5, TimeUnit.SECONDS);
         Captured errors = stderr.get(5, TimeUnit.SECONDS);
@@ -132,14 +142,20 @@ public class BilibiliCliCollector {
       Thread.currentThread().interrupt();
       throw new CollectionFailure("COLLECTION_INTERRUPTED", e);
     } catch (ExecutionException | TimeoutException e) {
-      throw new CollectionFailure("TOOL_STREAM_FAILURE", e);
+      // 超限标记先于destroyForcibly发布，任一读取Future失败仍保留原业务错误；普通I/O失败不冒称超限。
+      throw new CollectionFailure(
+          outputLimitReached.get() ? "TOOL_OUTPUT_LIMIT" : "TOOL_STREAM_FAILURE", e);
     } finally {
       if (process != null && process.isAlive()) process.destroyForcibly();
     }
   }
 
-  /** 超限后继续排空管道，使子进程可以退出；只保留边界内字节，stderr 从不进入接口或数据库。 */
-  private Captured readBounded(InputStream stream, int limit, Process child) throws IOException {
+  /**
+   * 1、只保留边界内字节；2、先记录共享超限事实；3、终止当前任务的子进程并返回，避免继续无限排空。 另一个管道可能因进程终止关闭，调用方仍优先解释已确认超限；stderr不进入接口或数据库。
+   */
+  private Captured readBounded(
+      InputStream stream, int limit, Process child, AtomicBoolean outputLimitReached)
+      throws IOException {
     ByteArrayOutputStream kept = new ByteArrayOutputStream(Math.min(limit, 64 * 1024));
     byte[] buffer = new byte[8192];
     long total = 0;
@@ -148,7 +164,9 @@ public class BilibiliCliCollector {
       if (total <= limit && read <= limit - total) kept.write(buffer, 0, read);
       else {
         exceeded = true;
+        outputLimitReached.set(true);
         child.destroyForcibly();
+        return new Captured(kept.toByteArray(), true);
       }
       total += read;
     }
