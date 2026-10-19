@@ -1,0 +1,745 @@
+{
+  "schemaVersion": "1.0",
+  "content": {
+    "id": "threadpool",
+    "sourceType": "SYNTHETIC",
+    "sourceContentId": "threadpool",
+    "creatorId": "demo-creator",
+    "title": "线程池与拒绝策略",
+    "publishedAt": "2026-10-13T10:00:00+08:00"
+  },
+  "comments": [
+    {
+      "id": "threadpool-c001",
+      "sourceCommentId": "synthetic-001",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:00:00+08:00"
+    },
+    {
+      "id": "threadpool-c002",
+      "sourceCommentId": "synthetic-002",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:00:01+08:00"
+    },
+    {
+      "id": "threadpool-c003",
+      "sourceCommentId": "synthetic-003",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:00:02+08:00"
+    },
+    {
+      "id": "threadpool-c004",
+      "sourceCommentId": "synthetic-004",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:00:03+08:00"
+    },
+    {
+      "id": "threadpool-c005",
+      "sourceCommentId": "synthetic-005",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:00:04+08:00"
+    },
+    {
+      "id": "threadpool-c006",
+      "sourceCommentId": "synthetic-006",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:00:05+08:00"
+    },
+    {
+      "id": "threadpool-c007",
+      "sourceCommentId": "synthetic-007",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:00:06+08:00"
+    },
+    {
+      "id": "threadpool-c008",
+      "sourceCommentId": "synthetic-008",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:00:07+08:00"
+    },
+    {
+      "id": "threadpool-c009",
+      "sourceCommentId": "synthetic-009",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:00:08+08:00"
+    },
+    {
+      "id": "threadpool-c010",
+      "sourceCommentId": "synthetic-010",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:00:09+08:00"
+    },
+    {
+      "id": "threadpool-c011",
+      "sourceCommentId": "synthetic-011",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:00:10+08:00"
+    },
+    {
+      "id": "threadpool-c012",
+      "sourceCommentId": "synthetic-012",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:00:11+08:00"
+    },
+    {
+      "id": "threadpool-c013",
+      "sourceCommentId": "synthetic-013",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:00:12+08:00"
+    },
+    {
+      "id": "threadpool-c014",
+      "sourceCommentId": "synthetic-014",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:00:13+08:00"
+    },
+    {
+      "id": "threadpool-c015",
+      "sourceCommentId": "synthetic-015",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:00:14+08:00"
+    },
+    {
+      "id": "threadpool-c016",
+      "sourceCommentId": "synthetic-016",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:00:15+08:00"
+    },
+    {
+      "id": "threadpool-c017",
+      "sourceCommentId": "synthetic-017",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:00:16+08:00"
+    },
+    {
+      "id": "threadpool-c018",
+      "sourceCommentId": "synthetic-018",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:00:17+08:00"
+    },
+    {
+      "id": "threadpool-c019",
+      "sourceCommentId": "synthetic-019",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:00:18+08:00"
+    },
+    {
+      "id": "threadpool-c020",
+      "sourceCommentId": "synthetic-020",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:00:19+08:00"
+    },
+    {
+      "id": "threadpool-c021",
+      "sourceCommentId": "synthetic-021",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:00:20+08:00"
+    },
+    {
+      "id": "threadpool-c022",
+      "sourceCommentId": "synthetic-022",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:00:21+08:00"
+    },
+    {
+      "id": "threadpool-c023",
+      "sourceCommentId": "synthetic-023",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:00:22+08:00"
+    },
+    {
+      "id": "threadpool-c024",
+      "sourceCommentId": "synthetic-024",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:00:23+08:00"
+    },
+    {
+      "id": "threadpool-c025",
+      "sourceCommentId": "synthetic-025",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:00:24+08:00"
+    },
+    {
+      "id": "threadpool-c026",
+      "sourceCommentId": "synthetic-026",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:00:25+08:00"
+    },
+    {
+      "id": "threadpool-c027",
+      "sourceCommentId": "synthetic-027",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:00:26+08:00"
+    },
+    {
+      "id": "threadpool-c028",
+      "sourceCommentId": "synthetic-028",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:00:27+08:00"
+    },
+    {
+      "id": "threadpool-c029",
+      "sourceCommentId": "synthetic-029",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:00:28+08:00"
+    },
+    {
+      "id": "threadpool-c030",
+      "sourceCommentId": "synthetic-030",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:00:29+08:00"
+    },
+    {
+      "id": "threadpool-c031",
+      "sourceCommentId": "synthetic-031",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:00:30+08:00"
+    },
+    {
+      "id": "threadpool-c032",
+      "sourceCommentId": "synthetic-032",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:00:31+08:00"
+    },
+    {
+      "id": "threadpool-c033",
+      "sourceCommentId": "synthetic-033",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:00:32+08:00"
+    },
+    {
+      "id": "threadpool-c034",
+      "sourceCommentId": "synthetic-034",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:00:33+08:00"
+    },
+    {
+      "id": "threadpool-c035",
+      "sourceCommentId": "synthetic-035",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:00:34+08:00"
+    },
+    {
+      "id": "threadpool-c036",
+      "sourceCommentId": "synthetic-036",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:00:35+08:00"
+    },
+    {
+      "id": "threadpool-c037",
+      "sourceCommentId": "synthetic-037",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:00:36+08:00"
+    },
+    {
+      "id": "threadpool-c038",
+      "sourceCommentId": "synthetic-038",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:00:37+08:00"
+    },
+    {
+      "id": "threadpool-c039",
+      "sourceCommentId": "synthetic-039",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:00:38+08:00"
+    },
+    {
+      "id": "threadpool-c040",
+      "sourceCommentId": "synthetic-040",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:00:39+08:00"
+    },
+    {
+      "id": "threadpool-c041",
+      "sourceCommentId": "synthetic-041",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:00:40+08:00"
+    },
+    {
+      "id": "threadpool-c042",
+      "sourceCommentId": "synthetic-042",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:00:41+08:00"
+    },
+    {
+      "id": "threadpool-c043",
+      "sourceCommentId": "synthetic-043",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:00:42+08:00"
+    },
+    {
+      "id": "threadpool-c044",
+      "sourceCommentId": "synthetic-044",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:00:43+08:00"
+    },
+    {
+      "id": "threadpool-c045",
+      "sourceCommentId": "synthetic-045",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:00:44+08:00"
+    },
+    {
+      "id": "threadpool-c046",
+      "sourceCommentId": "synthetic-046",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:00:45+08:00"
+    },
+    {
+      "id": "threadpool-c047",
+      "sourceCommentId": "synthetic-047",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:00:46+08:00"
+    },
+    {
+      "id": "threadpool-c048",
+      "sourceCommentId": "synthetic-048",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:00:47+08:00"
+    },
+    {
+      "id": "threadpool-c049",
+      "sourceCommentId": "synthetic-049",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:00:48+08:00"
+    },
+    {
+      "id": "threadpool-c050",
+      "sourceCommentId": "synthetic-050",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:00:49+08:00"
+    },
+    {
+      "id": "threadpool-c051",
+      "sourceCommentId": "synthetic-051",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:00:50+08:00"
+    },
+    {
+      "id": "threadpool-c052",
+      "sourceCommentId": "synthetic-052",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:00:51+08:00"
+    },
+    {
+      "id": "threadpool-c053",
+      "sourceCommentId": "synthetic-053",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:00:52+08:00"
+    },
+    {
+      "id": "threadpool-c054",
+      "sourceCommentId": "synthetic-054",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:00:53+08:00"
+    },
+    {
+      "id": "threadpool-c055",
+      "sourceCommentId": "synthetic-055",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:00:54+08:00"
+    },
+    {
+      "id": "threadpool-c056",
+      "sourceCommentId": "synthetic-056",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:00:55+08:00"
+    },
+    {
+      "id": "threadpool-c057",
+      "sourceCommentId": "synthetic-057",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:00:56+08:00"
+    },
+    {
+      "id": "threadpool-c058",
+      "sourceCommentId": "synthetic-058",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:00:57+08:00"
+    },
+    {
+      "id": "threadpool-c059",
+      "sourceCommentId": "synthetic-059",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:00:58+08:00"
+    },
+    {
+      "id": "threadpool-c060",
+      "sourceCommentId": "synthetic-060",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:00:59+08:00"
+    },
+    {
+      "id": "threadpool-c061",
+      "sourceCommentId": "synthetic-061",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:01:00+08:00"
+    },
+    {
+      "id": "threadpool-c062",
+      "sourceCommentId": "synthetic-062",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:01:01+08:00"
+    },
+    {
+      "id": "threadpool-c063",
+      "sourceCommentId": "synthetic-063",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:01:02+08:00"
+    },
+    {
+      "id": "threadpool-c064",
+      "sourceCommentId": "synthetic-064",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:01:03+08:00"
+    },
+    {
+      "id": "threadpool-c065",
+      "sourceCommentId": "synthetic-065",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:01:04+08:00"
+    },
+    {
+      "id": "threadpool-c066",
+      "sourceCommentId": "synthetic-066",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:01:05+08:00"
+    },
+    {
+      "id": "threadpool-c067",
+      "sourceCommentId": "synthetic-067",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:01:06+08:00"
+    },
+    {
+      "id": "threadpool-c068",
+      "sourceCommentId": "synthetic-068",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:01:07+08:00"
+    },
+    {
+      "id": "threadpool-c069",
+      "sourceCommentId": "synthetic-069",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:01:08+08:00"
+    },
+    {
+      "id": "threadpool-c070",
+      "sourceCommentId": "synthetic-070",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:01:09+08:00"
+    },
+    {
+      "id": "threadpool-c071",
+      "sourceCommentId": "synthetic-071",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:01:10+08:00"
+    },
+    {
+      "id": "threadpool-c072",
+      "sourceCommentId": "synthetic-072",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:01:11+08:00"
+    },
+    {
+      "id": "threadpool-c073",
+      "sourceCommentId": "synthetic-073",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:01:12+08:00"
+    },
+    {
+      "id": "threadpool-c074",
+      "sourceCommentId": "synthetic-074",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:01:13+08:00"
+    },
+    {
+      "id": "threadpool-c075",
+      "sourceCommentId": "synthetic-075",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:01:14+08:00"
+    },
+    {
+      "id": "threadpool-c076",
+      "sourceCommentId": "synthetic-076",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:01:15+08:00"
+    },
+    {
+      "id": "threadpool-c077",
+      "sourceCommentId": "synthetic-077",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:01:16+08:00"
+    },
+    {
+      "id": "threadpool-c078",
+      "sourceCommentId": "synthetic-078",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:01:17+08:00"
+    },
+    {
+      "id": "threadpool-c079",
+      "sourceCommentId": "synthetic-079",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:01:18+08:00"
+    },
+    {
+      "id": "threadpool-c080",
+      "sourceCommentId": "synthetic-080",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:01:19+08:00"
+    },
+    {
+      "id": "threadpool-c081",
+      "sourceCommentId": "synthetic-081",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:01:20+08:00"
+    },
+    {
+      "id": "threadpool-c082",
+      "sourceCommentId": "synthetic-082",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:01:21+08:00"
+    },
+    {
+      "id": "threadpool-c083",
+      "sourceCommentId": "synthetic-083",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:01:22+08:00"
+    },
+    {
+      "id": "threadpool-c084",
+      "sourceCommentId": "synthetic-084",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:01:23+08:00"
+    },
+    {
+      "id": "threadpool-c085",
+      "sourceCommentId": "synthetic-085",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:01:24+08:00"
+    },
+    {
+      "id": "threadpool-c086",
+      "sourceCommentId": "synthetic-086",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:01:25+08:00"
+    },
+    {
+      "id": "threadpool-c087",
+      "sourceCommentId": "synthetic-087",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:01:26+08:00"
+    },
+    {
+      "id": "threadpool-c088",
+      "sourceCommentId": "synthetic-088",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:01:27+08:00"
+    },
+    {
+      "id": "threadpool-c089",
+      "sourceCommentId": "synthetic-089",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:01:28+08:00"
+    },
+    {
+      "id": "threadpool-c090",
+      "sourceCommentId": "synthetic-090",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:01:29+08:00"
+    },
+    {
+      "id": "threadpool-c091",
+      "sourceCommentId": "synthetic-091",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:01:30+08:00"
+    },
+    {
+      "id": "threadpool-c092",
+      "sourceCommentId": "synthetic-092",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:01:31+08:00"
+    },
+    {
+      "id": "threadpool-c093",
+      "sourceCommentId": "synthetic-093",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:01:32+08:00"
+    },
+    {
+      "id": "threadpool-c094",
+      "sourceCommentId": "synthetic-094",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:01:33+08:00"
+    },
+    {
+      "id": "threadpool-c095",
+      "sourceCommentId": "synthetic-095",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:01:34+08:00"
+    },
+    {
+      "id": "threadpool-c096",
+      "sourceCommentId": "synthetic-096",
+      "parentId": null,
+      "text": "线程池与拒绝策略的例子很清楚，帮助我理解了。",
+      "occurredAt": "2026-10-14T10:01:35+08:00"
+    },
+    {
+      "id": "threadpool-c097",
+      "sourceCommentId": "synthetic-097",
+      "parentId": null,
+      "text": "线程池与拒绝策略的边界条件缺少完整案例，希望补充。",
+      "occurredAt": "2026-10-14T10:01:36+08:00"
+    },
+    {
+      "id": "threadpool-c098",
+      "sourceCommentId": "synthetic-098",
+      "parentId": null,
+      "text": "请问线程池与拒绝策略的示例代码在哪里下载？",
+      "occurredAt": "2026-10-14T10:01:37+08:00"
+    },
+    {
+      "id": "threadpool-c099",
+      "sourceCommentId": "synthetic-099",
+      "parentId": null,
+      "text": "好一个“讲清楚了”，我再看一遍吧。",
+      "occurredAt": "2026-10-14T10:01:38+08:00"
+    },
+    {
+      "id": "threadpool-c100",
+      "sourceCommentId": "synthetic-100",
+      "parentId": null,
+      "text": "感谢整理线程池与拒绝策略，演示步骤容易复现。",
+      "occurredAt": "2026-10-14T10:01:39+08:00"
+    }
+  ],
+  "transcriptSegments": [
+    {
+      "id": "threadpool-s1",
+      "startMs": 0,
+      "endMs": 60000,
+      "text": "线程池与拒绝策略合成章节 1：用于检查字幕字段，不代表真实视频。"
+    },
+    {
+      "id": "threadpool-s2",
+      "startMs": 60000,
+      "endMs": 120000,
+      "text": "线程池与拒绝策略合成章节 2：用于检查字幕字段，不代表真实视频。"
+    },
+    {
+      "id": "threadpool-s3",
+      "startMs": 120000,
+      "endMs": 180000,
+      "text": "线程池与拒绝策略合成章节 3：用于检查字幕字段，不代表真实视频。"
+    },
+    {
+      "id": "threadpool-s4",
+      "startMs": 180000,
+      "endMs": 240000,
+      "text": "线程池与拒绝策略合成章节 4：用于检查字幕字段，不代表真实视频。"
+    },
+    {
+      "id": "threadpool-s5",
+      "startMs": 240000,
+      "endMs": 300000,
+      "text": "线程池与拒绝策略合成章节 5：用于检查字幕字段，不代表真实视频。"
+    }
+  ]
+}

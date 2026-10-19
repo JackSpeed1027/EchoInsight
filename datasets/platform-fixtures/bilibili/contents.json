@@ -1,0 +1,17 @@
+[
+  {
+    "video_id": "990000000001",
+    "title": "合成平台导出格式验收（非真实采集）",
+    "creator_hash": "synthetic-author",
+    "create_time": 1760000000,
+    "fixture": true,
+    "nickname": "不应保存的合成昵称"
+  },
+  {
+    "video_id": "other-fixture",
+    "title": "其他作品合成行",
+    "creator_hash": "synthetic-other",
+    "create_time": 1760000000,
+    "fixture": true
+  }
+]

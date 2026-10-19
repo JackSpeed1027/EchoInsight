@@ -1,0 +1,23 @@
+[
+  {
+    "note_id": "fixture-xhs-001",
+    "comment_id": "10001",
+    "parent_comment_id": "0",
+    "content": "这是一条合成平台格式评论，核对导入和证据流程。",
+    "create_time": 1760000000124
+  },
+  {
+    "note_id": "fixture-xhs-001",
+    "comment_id": "10002",
+    "parent_comment_id": "10001",
+    "content": "合成回复：请展开父评论核对上下文。",
+    "create_time": 1760000000125
+  },
+  {
+    "note_id": "other-fixture",
+    "comment_id": "20001",
+    "parent_comment_id": "0",
+    "content": "另一作品的合成评论，应计入排除数。",
+    "create_time": 1760000000126
+  }
+]

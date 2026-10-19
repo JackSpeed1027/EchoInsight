@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "1.0",
+  "datasetVersion": "draft-20261015",
+  "status": "DRAFT",
+  "splits": {
+    "dev": "dev.jsonl",
+    "test": "test.jsonl"
+  }
+}

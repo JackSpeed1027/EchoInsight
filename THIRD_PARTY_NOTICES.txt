@@ -1,0 +1,13 @@
+EchoInsight第三方设计参考
+
+B站公开分页接口、匿名buvid握手及WBI键置换/签名规则参考：
+tamnd/bilibili-cli v0.3.0，Apache License 2.0。
+https://github.com/tamnd/bilibili-cli/tree/v0.3.0
+https://github.com/tamnd/bilibili-cli/blob/v0.3.0/LICENSE
+本仓库以Java实现受限单页客户端和业务检查点，不包含其可执行二进制。
+
+Workflow模式参考Anthropic Building effective agents。
+https://www.anthropic.com/engineering/building-effective-agents
+
+其他依赖及版本以pom.xml、frontend/pnpm-lock.yaml、agent/requirements.lock.txt为准。
+第三方权利及各自许可不因本仓库公开而改变；项目自身许可尚未选择。

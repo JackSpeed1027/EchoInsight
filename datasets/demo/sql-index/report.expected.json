@@ -1,0 +1,40 @@
+{
+  "reportId": "demo-report-sql-index",
+  "snapshotId": "demo-sql-index-v1",
+  "version": 1,
+  "provenance": {
+    "mode": "MOCK",
+    "modelVersion": "fixture-mock-v1",
+    "promptVersion": "demo-v1",
+    "taxonomyVersion": "sentiment-v1",
+    "generatedAt": "2026-10-15T12:00:00+08:00"
+  },
+  "coverage": {
+    "importedComments": 100,
+    "eligibleComments": 100,
+    "classifiedComments": 80,
+    "unknown": 20,
+    "sourceTotalComments": null,
+    "sourceCoverage": null
+  },
+  "metrics": {
+    "positive": 40,
+    "negative": 20,
+    "neutral": 20,
+    "positiveShareAmongClassified": 0.5
+  },
+  "findings": [
+    {
+      "claim": "合成评论中出现希望补充边界案例的反馈。",
+      "evidenceIds": [
+        "sql-index-c002",
+        "sql-index-c007"
+      ]
+    }
+  ],
+  "limitations": [
+    "全部为合成样本，包含重复模板，不代表观众反馈分布。",
+    "这是手工构造的预期报告，不是模型执行结果。",
+    "无法判断样本未进入已分类评论比例的分母。"
+  ]
+}

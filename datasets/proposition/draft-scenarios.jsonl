@@ -1,0 +1,10 @@
+{"id": "emotion-vs-stance", "status": "DRAFT_SYNTHETIC_NOT_GOLD", "proposition": "剧情因果自洽", "comment": "视频很棒，但因果结论说不通。", "reviewFocus": "情绪友好不代表支持命题"}
+{"id": "conditional", "status": "DRAFT_SYNTHETIC_NOT_GOLD", "proposition": "剧情因果自洽", "comment": "只有把这段看作另一条世界线，解释才成立。", "reviewFocus": "限定条件不可丢失"}
+{"id": "question", "status": "DRAFT_SYNTHETIC_NOT_GOLD", "proposition": "剧情因果自洽", "comment": "这个前提在哪里提过？", "reviewFocus": "仅提问或疑问语气结合语境判断"}
+{"id": "irony", "status": "DRAFT_SYNTHETIC_NOT_GOLD", "proposition": "剧情因果自洽", "comment": "对对对，什么矛盾都叫伏笔。", "reviewFocus": "讽刺不得只按字面支持"}
+{"id": "quoted-opponent", "status": "DRAFT_SYNTHETIC_NOT_GOLD", "proposition": "剧情因果自洽", "comment": "有人说“完全自洽”，但我不认同。", "reviewFocus": "引述不代表自己立场"}
+{"id": "multiple-claims", "status": "DRAFT_SYNTHETIC_NOT_GOLD", "proposition": "这段推导全部成立", "comment": "前提一成立，第二步推论却不成立。", "reviewFocus": "保留不同主张与混合，不强制单标签"}
+{"id": "irrelevant", "status": "DRAFT_SYNTHETIC_NOT_GOLD", "proposition": "剧情因果自洽", "comment": "封面真的很好看。", "reviewFocus": "无关不归中立"}
+{"id": "missing-context", "status": "DRAFT_SYNTHETIC_NOT_GOLD", "proposition": "剧情因果自洽", "comment": "上面那句才对。", "reviewFocus": "缺父指代不足；不能编造语境"}
+{"id": "creator-role", "status": "DRAFT_SYNTHETIC_NOT_GOLD", "proposition": "创作者主张剧情自洽", "comment": "角色说一切符合因果。", "reviewFocus": "角色台词不能证明创作者声明"}
+{"id": "no-claims", "status": "DRAFT_SYNTHETIC_NOT_GOLD", "proposition": "剧情因果自洽", "comment": "哈哈哈", "reviewFocus": "零主张时分母0，不能制造支持率"}

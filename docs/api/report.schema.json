@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EchoInsight report v1 / v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reportId",
+    "snapshotId",
+    "version",
+    "provenance",
+    "coverage",
+    "metrics",
+    "findings",
+    "limitations"
+  ],
+  "properties": {
+    "reportId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "snapshotId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "modelVersion",
+        "promptVersion",
+        "taxonomyVersion",
+        "generatedAt",
+        "mode"
+      ],
+      "properties": {
+        "modelVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "promptVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "taxonomyVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "generatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "mode": {
+          "enum": ["MOCK", "LOCAL_STUB", "MODEL", "REAL"]
+        },
+        "providerId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verifiedResponseModel": {
+          "type": "string",
+          "minLength": 1
+        },
+        "priceVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "billingUnit": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "importedComments",
+        "eligibleComments",
+        "classifiedComments",
+        "unknown",
+        "sourceTotalComments",
+        "sourceCoverage"
+      ],
+      "properties": {
+        "importedComments": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "eligibleComments": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "classifiedComments": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unknown": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sourceTotalComments": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "sourceCoverage": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "snapshotCommentCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "兼容性别名，等于 eligibleComments；旧报告可缺失"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "positive",
+        "negative",
+        "neutral",
+        "positiveShareAmongClassified"
+      ],
+      "properties": {
+        "positive": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "negative": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "neutral": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "positiveShareAmongClassified": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim", "evidenceIds"],
+        "properties": {
+          "claim": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidenceIds": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

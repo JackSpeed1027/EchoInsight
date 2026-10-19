@@ -1,0 +1,17 @@
+[
+  {
+    "note_id": "fixture-xhs-001",
+    "title": "合成平台导出格式验收（非真实采集）",
+    "creator_hash": "synthetic-author",
+    "time": 1760000000123,
+    "fixture": true,
+    "nickname": "不应保存的合成昵称"
+  },
+  {
+    "note_id": "other-fixture",
+    "title": "其他作品合成行",
+    "creator_hash": "synthetic-other",
+    "time": 1760000000123,
+    "fixture": true
+  }
+]

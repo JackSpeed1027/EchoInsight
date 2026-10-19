@@ -1,0 +1,8 @@
+{
+  "synthetic": true,
+  "inputSha256": "354a35d02753e6ce66dfe3f579976d8c55a26a37a08a49c8f4f503ac9703c495",
+  "snapshotId": "demo-threadpool-v1",
+  "commentCount": 100,
+  "transcriptSegmentCount": 5,
+  "sampling": "5 repeated templates; pipeline fixtures, not a quality evaluation corpus"
+}

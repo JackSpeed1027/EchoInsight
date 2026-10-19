@@ -1,0 +1,60 @@
+server:
+  address: 127.0.0.1
+  port: ${SERVER_PORT:8080}
+spring:
+  application:
+    name: echoinsight
+  config:
+    import: "optional:file:./runtime/application-local.properties,optional:file:../runtime/application-local.properties"
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      # 平台适配一次上传两份文件，各 2 MiB；整体留出 multipart 边界空间。
+      max-request-size: 5MB
+  datasource:
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/insightflow?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC}
+    username: ${DB_USERNAME:insightflow_app}
+    password: ${DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 5
+  flyway:
+    enabled: true
+  jackson:
+    default-property-inclusion: always
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+
+# 历史配置仅兼容读取：新 echoinsight.* 外部配置优先，不改写旧本机凭据文件。
+echoinsight:
+  worker:
+    # 测试用独立 execution-scope，避免历史待执行测试任务进入日常后台队列。
+    execution-scope: local
+    enabled: ${echoagent.worker.enabled:true}
+    lease-seconds: ${echoagent.worker.lease-seconds:30}
+    heartbeat-ms: ${echoagent.worker.heartbeat-ms:5000}
+  model:
+    enabled: ${echoagent.model.enabled:false}
+    allow-paid-calls: ${echoagent.model.allow-paid-calls:false}
+    api-key: ${echoagent.model.api-key:}
+    expected-response-model: ${echoagent.model.expected-response-model:}
+    price-version: ${echoagent.model.price-version:}
+    input-nanos-per-token: ${echoagent.model.input-nanos-per-token:0}
+    output-nanos-per-token: ${echoagent.model.output-nanos-per-token:0}
+    task-budget-usd: ${echoagent.model.task-budget-usd:0}
+  collection:
+    bilibili:
+      # 在线采集默认关闭；只允许本机配置显式开启并指定固定 CLI，不接受 HTTP 动态工具参数。
+      enabled: false
+      binary: runtime/tools/bilibili-cli-v0.3.0/bin/bili.exe
+      storage-dir: runtime/collections
+      timeout-seconds: 60
+      lease-seconds: 180

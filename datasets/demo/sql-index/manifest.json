@@ -1,0 +1,8 @@
+{
+  "synthetic": true,
+  "inputSha256": "4b97357aadae7056c0479f643d6b5d9dc8faf80fc7c386e42b47fbb04ec45891",
+  "snapshotId": "demo-sql-index-v1",
+  "commentCount": 100,
+  "transcriptSegmentCount": 5,
+  "sampling": "5 repeated templates; pipeline fixtures, not a quality evaluation corpus"
+}

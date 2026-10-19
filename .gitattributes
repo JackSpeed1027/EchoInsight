@@ -1,0 +1,15 @@
+# 文本在Git中统一LF，IDEA/终端按.editorconfig编辑；不批量改写本机历史文件。
+* text=auto
+*.java text eol=lf
+*.vue text eol=lf
+*.ts text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.jsonl text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.xml text eol=lf
+*.properties text eol=lf
+*.ps1 text eol=lf
+*.txt text eol=lf

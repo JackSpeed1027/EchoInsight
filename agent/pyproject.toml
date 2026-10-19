@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "echoinsight-tools"
+version = "0.1.0"
+description = "EchoInsight 的 LangGraph 受控报告工具编排"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "langgraph==1.2.15",
+    "langgraph-checkpoint-sqlite==3.1.2",
+    "pydantic==2.14.1",
+]
+
+[project.optional-dependencies]
+dev = ["ruff==0.17.0"]
+
+[project.scripts]
+echoinsight-tools = "echoinsight_tools.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

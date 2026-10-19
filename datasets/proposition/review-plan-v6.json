@@ -1,0 +1,58 @@
+{
+  "status": "DRAFT_REQUIRES_INDEPENDENT_ADJUDICATION",
+  "modelCallsPerformed": false,
+  "independentAccuracy": null,
+  "reviewDimensions": [
+    "同一命题的支持与反对",
+    "反讽和引用他人观点",
+    "限定条件保留",
+    "指代与父语境",
+    "多主张及混合",
+    "分片边界一致性",
+    "证据是否真的支持结论"
+  ],
+  "protocol": [
+    "先冻结样本及命题，隐藏模型输出",
+    "由独立标注者逐主张标注立场/条件/证据并保留未知",
+    "分歧经裁决形成固定dev/test，测试集不用于调提示",
+    "在明确收费范围和预算后对比v5/v6与分片边界变化",
+    "分别报告语义质量、工程覆盖、费用及未决项，不混为准确率"
+  ],
+  "reviewers": [],
+  "adjudicatedCases": 0,
+  "notes": "开发者合成替身标签不作为独立金标准；本文件只准备评测程序，不编造人工裁决或模型质量。",
+  "offlineComparison": {
+    "command": "python tools/evaluate_stance.py --cases datasets/proposition/review-cases.jsonl --predictions <actual-predictions.json>",
+    "gate": "--require-reviewed",
+    "caseFields": [
+      "id",
+      "contentId",
+      "split:dev|test",
+      "sourceKind:SYNTHETIC|AUTHORIZED",
+      "permissionRef:required-if-AUTHORIZED",
+      "nearDuplicateGroup:optional",
+      "proposition",
+      "comments:{id,text,parentId}[]",
+      "backgroundEvidenceIds:optional",
+      "gold:null-or-{status:ADJUDICATED,annotatorIds,adjudicatorId,decisions}"
+    ],
+    "goldDecision": {
+      "commentId": "actual-source-id",
+      "coverage": "CLAIMS|QUESTION|IRRELEVANT|UNKNOWN",
+      "positions": "up to two unique SUPPORT|OPPOSE|QUALIFIED|UNKNOWN",
+      "reason": "reviewer explanation"
+    },
+    "predictionsShape": "case ID maps to actual artifact {decisions:[{commentId,coverage,claims:[{position,evidenceIds}]}]}",
+    "metrics": [
+      "coverageExact",
+      "positionSetExact"
+    ],
+    "limits": [
+      "declarations do not authenticate independent reviewers",
+      "semantic evidence, reasons and conditions require human review",
+      "same work / normalized duplicate text / declared duplicate group cannot cross dev and test",
+      "empty DRAFT produces no score; missing or invalid predictions suppress scores",
+      "synthetic labels are engineering only"
+    ]
+  }
+}
