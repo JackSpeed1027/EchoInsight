@@ -21,6 +21,7 @@ import AnalysisPanel from './AnalysisPanel.vue'
 import JobHistory from './JobHistory.vue'
 import IntelligentAnalysis from './IntelligentAnalysis.vue'
 import ProjectTaskCenter from './ProjectTaskCenter.vue'
+import ContentWorkspace from './ContentWorkspace.vue'
 const props = defineProps<{
   projectId: string
   tab: string
@@ -35,11 +36,13 @@ const emit = defineEmits<{
   analysis: [snapshotId: string, jobId?: string, fresh?: boolean]
   insight: [snapshotId: string]
   request: [snapshotId: string, requestId: string]
+  content: [jobId: string]
 }>()
 const project = ref<Project | null>(null)
 const materials = ref<Page<ProjectSnapshot> | null>(null)
 const selected = ref<ProjectSnapshot | null>(null)
 const error = ref('')
+const summaryError = ref('')
 const loading = ref(false)
 const page = ref(1)
 const importKind = ref('url')
@@ -50,6 +53,7 @@ async function load() {
   const version = ++generation
   loading.value = true
   error.value = ''
+  summaryError.value = ''
   selected.value = null
   try {
     const summary = await readApi<Project>(
@@ -88,6 +92,18 @@ async function load() {
       error.value = caught instanceof Error ? caught.message : '项目读取失败。'
   } finally {
     if (version === generation) loading.value = false
+  }
+}
+/** 内容另存/接受后只刷新项目摘要，不卸载子页面，也不清空正在填写的问题。 */
+async function refreshSummary() {
+  const version = generation
+  summaryError.value = ''
+  try {
+    const value = await readApi<Project>('/api/v1/projects/' + encodeURIComponent(props.projectId))
+    if (version === generation) project.value = value
+  } catch (caught) {
+    if (version === generation)
+      summaryError.value = caught instanceof Error ? caught.message : '项目数量更新失败，请重试。'
   }
 }
 /** 新导入已由服务端事务归档，返回资料列表即可，不再在表单下堆一套报告。 */
@@ -139,7 +155,13 @@ onUnmounted(() => {
       <span
         ><b>{{ project.jobCount }}</b> 次分析</span
       ><span class="summary-hint">旧版本与报告会保留</span>
+      <span
+        ><b>{{ project.contentMaterialCount }}</b> 份内容材料</span
+      >
     </div>
+    <p v-if="summaryError" role="alert" class="error">
+      {{ summaryError }} <button @click="refreshSummary">刷新项目数量</button>
+    </p>
     <nav class="project-tabs" aria-label="项目页面">
       <button :class="{ selected: tab === 'sets' }" @click="emit('tab', 'sets')">资料集合</button>
       <button :class="{ selected: tab === 'materials' }" @click="emit('tab', 'materials')">
@@ -147,6 +169,9 @@ onUnmounted(() => {
       </button>
       <button :class="{ selected: tab === 'insight' }" @click="emit('tab', 'insight')">
         智能分析
+      </button>
+      <button :class="{ selected: tab === 'content' }" @click="emit('tab', 'content')">
+        内容材料
       </button>
       <button :class="{ selected: tab === 'tasks' }" @click="emit('tab', 'tasks')">任务中心</button>
       <button :class="{ selected: tab === 'history' }" @click="emit('tab', 'history')">
@@ -167,6 +192,7 @@ onUnmounted(() => {
           <h2>先为项目添加一份资料</h2>
           <p>导入平台评论文件或本地标准 JSON，再从资料卡片开始分析。</p>
           <button class="primary" @click="emit('tab', 'import')">添加第一份资料</button>
+          <button class="quiet" @click="emit('tab', 'content')">没有评论，上传文本或字幕</button>
         </div>
         <div class="material-grid" v-else>
           <article class="material-card" v-for="item in materials.items" :key="item.snapshotId">
@@ -214,12 +240,19 @@ onUnmounted(() => {
           </button>
         </div>
       </template>
+      <ContentWorkspace
+        v-else-if="tab === 'content'"
+        :project-id="projectId"
+        :initial-job-id="jobId"
+        @updated="refreshSummary"
+      />
       <ProjectTaskCenter
         v-else-if="tab === 'tasks'"
         :project-id="projectId"
         @request="(snapshot, request) => emit('request', snapshot, request)"
         @analysis="(snapshot, job) => emit('analysis', snapshot, job)"
         @materials="emit('tab', 'materials')"
+        @content="(job) => emit('content', job)"
       />
       <JobHistory
         v-else-if="tab === 'history'"

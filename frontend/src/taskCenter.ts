@@ -17,6 +17,8 @@ export type ProjectTask = {
   canCancel: boolean
   canResume: boolean
   canRetry: boolean
+  inputKind?: string
+  materialId?: string | null
 }
 export type TaskDetail = {
   task: ProjectTask

@@ -32,7 +32,7 @@ public final class SpringAiDiscussionProvider implements DiscussionModelContract
       strictOutputReader(io.echoinsight.model.StanceProtocol.Payload.class);
 
   /** 创建拒绝未知字段、重复键、强制类型转换和尾随内容的解析器。 */
-  private static ObjectReader strictOutputReader(Class<?> type) {
+  static ObjectReader strictOutputReader(Class<?> type) {
     var mapper =
         JsonMapper.builder(
                 JsonFactory.builder()

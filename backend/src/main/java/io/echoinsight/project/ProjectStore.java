@@ -22,7 +22,8 @@ public class ProjectStore {
        (SELECT COUNT(DISTINCT s.content_id) FROM project_snapshot ps
         JOIN data_snapshot s ON s.id=ps.snapshot_id WHERE ps.project_id=p.id) work_count,
        (SELECT COUNT(*) FROM project_snapshot ps JOIN analysis_job j ON j.snapshot_id=ps.snapshot_id
-        WHERE ps.project_id=p.id) job_count
+        WHERE ps.project_id=p.id)+(SELECT COUNT(*) FROM content_analysis_input ci WHERE ci.project_id=p.id) job_count,
+       (SELECT COUNT(*) FROM content_material cm WHERE cm.project_id=p.id) content_material_count
       FROM business_project p
       """;
   private static final String SNAPSHOT_SELECT =
@@ -65,7 +66,8 @@ public class ProjectStore {
       String createdAt,
       long workCount,
       long snapshotCount,
-      long jobCount) {}
+      long jobCount,
+      long contentMaterialCount) {}
 
   /** 创建首请求与网络重发分别返回，复用已保存项目。 */
   public record Created(Project project, boolean created) {}
@@ -238,7 +240,8 @@ public class ProjectStore {
         row.getString("created_at"),
         row.getLong("work_count"),
         row.getLong("snapshot_count"),
-        row.getLong("job_count"));
+        row.getLong("job_count"),
+        row.getLong("content_material_count"));
   }
 
   /** 最近任务与快照一一对齐；尚未分析的资料也能出现在项目中。 */

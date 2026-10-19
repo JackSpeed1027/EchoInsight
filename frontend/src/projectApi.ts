@@ -7,6 +7,7 @@ export type Project = {
   workCount: number
   snapshotCount: number
   jobCount: number
+  contentMaterialCount: number
 }
 export type ProjectSnapshot = {
   snapshotId: string

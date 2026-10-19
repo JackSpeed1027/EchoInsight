@@ -117,6 +117,27 @@ public final class ConfiguredModelPlan {
         "MOCK");
   }
 
+  /** 独立内容使用新提示版本，报价、预算、供应商沿用原服务器计划，不回写历史评论任务。 */
+  public ModelContract.Plan content() {
+    var base = discussion();
+    return new ModelContract.Plan(
+        base.providerId(),
+        base.modelVersion(),
+        io.echoinsight.content.ContentModelContract.PROMPT,
+        io.echoinsight.content.ContentModelContract.TAXONOMY,
+        1,
+        base.timeoutMs(),
+        4096,
+        base.unit(),
+        base.priceVersion(),
+        base.inputUnitRate(),
+        base.outputUnitRate(),
+        base.budgetLimit(),
+        base.inputTokenCeiling(),
+        base.responseModel(),
+        base.executionMode());
+  }
+
   /** 仅显式选择背景的新请求采用v4；纯评论和既有任务继续保留v3计划与检查点。 */
   public ModelContract.Plan discussionWithContext() {
     var base = discussion();

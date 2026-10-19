@@ -38,6 +38,7 @@ const messages: Record<string, [string, string]> = {
   MODEL_RESPONSE_TOO_LARGE: ['模型响应超过安全体积限制', MODEL_ACTION],
   MODEL_EVIDENCE_INVALID: ['模型引用不存在、重复或缺少评论依据', MODEL_ACTION],
   MODEL_ISSUE_INVALID: ['模型议题的身份、文字或字段未通过校验', MODEL_ACTION],
+  MODEL_CONTENT_INVALID: ['内容结果的字段、用量或材料引用未通过校验，未发布报告', MODEL_ACTION],
   MODEL_STANCE_INVALID: ['命题结果缺少逐条覆盖、条件或原评论证据', MODEL_ACTION],
   MODEL_CLAIM_INVALID: ['模型观点的议题归属或字段未通过校验', MODEL_ACTION],
   MODEL_RELATION_INVALID: ['模型观点关系越界、自引用或跨议题', MODEL_ACTION],

@@ -19,6 +19,7 @@ public class ModelGateway implements AutoCloseable {
   private final ObjectMapper json;
   private final Map<String, ModelContract.Provider> providers;
   private final Map<String, DiscussionModelContract.Provider> discussionProviders;
+  private final Map<String, io.echoinsight.content.ContentModelContract.Provider> contentProviders;
   private final ThreadPoolExecutor calls =
       new ThreadPoolExecutor(
           2,
@@ -39,7 +40,8 @@ public class ModelGateway implements AutoCloseable {
       ModelLedger ledger,
       ObjectMapper json,
       List<ModelContract.Provider> providers,
-      List<DiscussionModelContract.Provider> discussionProviders) {
+      List<DiscussionModelContract.Provider> discussionProviders,
+      List<io.echoinsight.content.ContentModelContract.Provider> contentProviders) {
     this.ledger = ledger;
     this.json = json;
     var registered = new HashMap<String, ModelContract.Provider>();
@@ -52,6 +54,20 @@ public class ModelGateway implements AutoCloseable {
       if (discussions.put(provider.id(), provider) != null)
         throw new IllegalArgumentException("Duplicate discussion model provider");
     this.discussionProviders = Map.copyOf(discussions);
+    var content = new HashMap<String, io.echoinsight.content.ContentModelContract.Provider>();
+    for (var provider : contentProviders)
+      if (content.put(provider.id(), provider) != null)
+        throw new IllegalArgumentException("Duplicate content provider");
+    this.contentProviders = Map.copyOf(content);
+  }
+
+  /** 兼容旧分类/讨论测试，生产容器注入全部三种协议的供应商注册表。 */
+  public ModelGateway(
+      ModelLedger ledger,
+      ObjectMapper json,
+      List<ModelContract.Provider> providers,
+      List<DiscussionModelContract.Provider> discussionProviders) {
+    this(ledger, json, providers, discussionProviders, List.of());
   }
 
   /** 兼容只测试分类网关的既有调用；生产容器使用完整构造器。 */
@@ -143,6 +159,62 @@ public class ModelGateway implements AutoCloseable {
         DiscussionModelContract.Response::inputTokens,
         DiscussionModelContract.Response::outputTokens,
         DiscussionModelContract.Response::requestId);
+  }
+
+  /** 独立内容只增加业务适配；共用同一个两线程上限、费用预留、超时、检查点及取消语义。 */
+  public io.echoinsight.content.ContentModelContract.Response analyzeContent(
+      String jobId,
+      String token,
+      ModelContract.Plan plan,
+      io.echoinsight.content.ContentModelContract.Request request) {
+    if (request == null
+        || request.selection() == null
+        || request.selection().segments() == null
+        || request.selection().segments().isEmpty()
+        || request.selection().segments().size() > 40
+        || request.instruction() == null
+        || request.instruction().isBlank()
+        || request.instruction().length() > 1000
+        || !io.echoinsight.content.ContentModelContract.PROMPT.equals(request.promptVersion())
+        || !request.promptVersion().equals(plan.promptVersion())
+        || !io.echoinsight.content.ContentModelContract.TAXONOMY.equals(plan.taxonomyVersion())
+        || !request.materialId().equals(request.selection().materialId())
+        || plan.inputTokenCeiling() == null
+        || request.maxInputTokens() != plan.inputTokenCeiling()
+        || request.maxOutputTokens() != plan.maxOutputTokens())
+      throw new ModelContract.Failure("MODEL_INVALID_REQUEST_BOUNDARY");
+    int chars = 0;
+    Set<String> ids = new HashSet<>();
+    for (var segment : request.selection().segments()) {
+      if (segment == null
+          || segment.id() == null
+          || segment.text() == null
+          || segment.text().isBlank()
+          || segment.text().length() > 10000
+          || !ids.add(segment.id()))
+        throw new ModelContract.Failure("MODEL_INVALID_REQUEST_BOUNDARY");
+      chars += segment.text().length();
+    }
+    if (chars > 12000 || chars != request.selection().selectedChars())
+      throw new ModelContract.Failure("MODEL_INVALID_REQUEST_BOUNDARY");
+    var provider = contentProviders.get(plan.providerId());
+    if (provider == null || !provider.modelVersion().equals(plan.modelVersion()))
+      throw new ModelContract.Failure("MODEL_UNSUPPORTED_VERSION");
+    provider.validatePlan(plan);
+    return execute(
+        jobId,
+        token,
+        plan,
+        0,
+        request,
+        request.maxInputTokens(),
+        request.maxOutputTokens(),
+        io.echoinsight.content.ContentModelContract.Response.class,
+        () -> provider.analyze(request, Duration.ofMillis(plan.timeoutMs())),
+        result -> io.echoinsight.content.ContentModelContract.validate(request, result),
+        io.echoinsight.content.ContentModelContract.Response::inputTokens,
+        io.echoinsight.content.ContentModelContract.Response::outputTokens,
+        io.echoinsight.content.ContentModelContract.Response::requestId);
   }
 
   /** 在费用预留前检查v3/v4对应、背景角色和输入总量，禁止背景碰撞评论身份或扩大调用范围。 */

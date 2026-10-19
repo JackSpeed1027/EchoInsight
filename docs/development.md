@@ -1,6 +1,6 @@
 # EchoInsight 开发与运行（IDEA / Windows）
 
-维护至第77轮。模块/业务/架构只看[总体基准](specs/EchoInsight-项目开发基准-v2.6.md)，URL只看[接口总览](api/接口总览.md)。本页集中运行、配置和排障，不按轮次堆叠历史状态。
+维护至第87轮。模块/业务/架构只看[总体基准](specs/EchoInsight-项目开发基准-v2.6.md)，URL只看[接口总览](api/接口总览.md)。本页集中运行、配置和排障，不按轮次堆叠历史状态。
 
 ## 2. 已配置的环境
 
@@ -176,3 +176,20 @@ python tools/evaluate_stance.py --cases runtime/private-review-new/review-cases.
 
 
 第77轮首次GitHub Linux CI发现CLI输出超限后，终止子进程导致另一管道Stream closed，遮蔽已确认的TOOL_OUTPUT_LIMIT。使用每次执行共享的原子标记，在终止前记录超限并优先保留该原因；普通流失败/超时规则不放宽。新增stderr超限与双管道并发超限子进程回归，最终309后端（136单元＋173集成）；失败日志round77-ci-initial-backend.log保留，修复不跳过原测试。
+
+
+## 13. 第78～87轮：独立内容的运行、调试与记录
+
+当前343后端（153单元＋190 MySQL集成）、25前端行为、20离线工具测试，88业务API，V25/39张表。新增content包的材料/选择/冻结输入/模型协议/业务执行；内容提示和Spring AI适配独立版本，基础任务和预算仍是原模块。未增加Python媒体服务或Agent部署依赖，IDEA启动配置不变。
+
+项目“内容材料”支持先上传TXT/MD/SRT/VTT再提问，不需要评论；菜单/首页数量区分内容材料和作品评论版本。原“智能分析”继续用于评论。第一次使用先看范围预检，再决定接受有限输入或缩小字幕时间。源码位置、业务原因、容量与限制见基准§18；全部URL和上下游见API§25。
+
+V25允许CONTENT任务没有评论snapshot_id，旧外键保持；只追加content_material与content_analysis_input，后者不复制任务状态。Worker在旧ImportDocument读取之前分流CONTENT，既有评论任务/计划/JSON/快照不回填。纯内容产物只绑定原job_id，schemaVersion=content-artifact-v1；定位分字符和时间，不能交给旧评论立场报告解析。
+
+本机日志runtime/round87-compile.log、round87-full-verify-final.log、round87-frontend-*-final.log、round87-tools-tests.log；汇总runtime/rounds78-87-delivery-summary.json。首轮合成字符串字数断言错误及修复日志另存，不覆盖测试历史。HTTP/UI验收用8081/5174与delivery-78-87范围，模型、收费、平台关闭；模型路径通过内存供应商测试原网关和账本，无DeepSeek质量成绩。
+
+常见错误：文件400先查UTF8、格式、2MiB/200000字符；422查无正文、范围遗漏未同意或预算不足；409检查同键输入是否改动或任务状态；费用未决看原执行记录。MODEL_CONTENT_INVALID是内容结构/引用/用量校验拒绝，发送后仍为MODEL_OUTCOME_UNKNOWN并保留预留，不以无报告认定未收费。
+
+日常仍只维护三份正文加导航，验收追加旧集中记录。按照既有授权审计后同步同一GitHub仓库，不生成源码ZIP；原真实采集/文件/凭据/候选标注/备份/旧说明留本机。独立质量、真实平台完整遍历、长内容全量归并、ASR/画面、备份恢复和团队仍待验收，不能由结构演示或CI通过替代。
+
+页面实际验收发现数字秒数由Vue隐式转为number，原字符串trim预检报错；已统一数字/字符串空值处理，新增0秒/数字/清空混合值回归。并同步当前任务与历史卡片状态，内容保存/接受后只刷新项目数量，不卸载正在填写的子页面。前端最终25项；首轮失败与修复日志均保留。

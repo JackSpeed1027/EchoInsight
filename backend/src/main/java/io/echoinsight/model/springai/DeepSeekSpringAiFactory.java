@@ -28,6 +28,12 @@ public final class DeepSeekSpringAiFactory {
     return new SpringAiDiscussionProvider(model, plan.modelVersion(), plan.expectedResponseModel());
   }
 
+  /** 独立内容共用固定域名/超时/单次调用/JSON约束，不放开任意供应商。 */
+  public static SpringAiContentProvider createContent(String apiKey, ModelContract.Plan plan) {
+    return new SpringAiContentProvider(
+        model(apiKey, plan), plan.modelVersion(), plan.expectedResponseModel());
+  }
+
   /** 集中构造一次 OpenAI 兼容模型实例，两个业务协议不会复制网络安全配置。 */
   private static OpenAiChatModel model(String apiKey, ModelContract.Plan plan) {
     var api =

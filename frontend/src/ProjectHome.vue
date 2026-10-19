@@ -129,6 +129,9 @@ onUnmounted(() => {
           ><span
             ><b>{{ item.jobCount }}</b> 次分析</span
           >
+          <span v-if="item.contentMaterialCount"
+            ><b>{{ item.contentMaterialCount }}</b> 份内容材料</span
+          >
         </div>
         <div class="project-card-bottom">
           <span>创建于 {{ item.createdAt.slice(0, 10) }}</span

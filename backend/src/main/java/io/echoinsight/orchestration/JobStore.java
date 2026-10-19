@@ -229,6 +229,81 @@ public class JobStore {
         });
   }
 
+  /** 创建无评论快照的CONTENT任务；输入绑定由外层业务事务随后写入，不能先提交半份任务。 */
+  public Job createContent(String key, io.echoinsight.model.ModelContract.Plan plan) {
+    return tx.execute(
+        status -> {
+          String id = UUID.randomUUID().toString();
+          db.update(
+              "INSERT INTO"
+                  + " analysis_job(id,snapshot_id,request_key,status,model_version,prompt_version,taxonomy_version,execution_plan_json,job_kind,execution_scope)"
+                  + " VALUES(?,NULL,?,'PENDING',?,?,?,?,'CONTENT',?)",
+              id,
+              key,
+              plan.modelVersion(),
+              plan.promptVersion(),
+              plan.taxonomyVersion(),
+              io.echoinsight.model.ModelContract.encode(plan),
+              executionScope);
+          db.update(
+              "INSERT INTO job_step(job_id,step_key,ordinal_no,status)"
+                  + " VALUES(?,'CONTENT',1,'READY'),(?,'ARTIFACT',2,'READY')",
+              id,
+              id);
+          return get(id);
+        });
+  }
+
+  /** 保存独立内容业务草稿；成功步骤与原模型批次可在恢复时复用。 */
+  public void saveContent(String id, String token, String result) {
+    tx.executeWithoutResult(
+        status -> {
+          own(id, token);
+          if (db.update(
+                  "UPDATE job_step SET status='SUCCEEDED',result_json=? WHERE job_id=? AND"
+                      + " step_key='CONTENT' AND status='RUNNING'",
+                  result,
+                  id)
+              != 1) throw new IllegalStateException("Invalid content transition");
+        });
+  }
+
+  /** 独立内容产物与任务一次发布；没有评论request/snapshot，不造假填充外键。 */
+  public void publishContent(String id, String token, String artifactId, String artifact) {
+    tx.executeWithoutResult(
+        status -> {
+          own(id, token);
+          var job = get(id);
+          if (!"CONTENT".equals(job.kind())
+              || job.snapshotId() != null
+              || db.queryForObject(
+                      "SELECT COUNT(*) FROM content_analysis_input WHERE job_id=?",
+                      Integer.class,
+                      id)
+                  != 1) throw new IllegalStateException("Invalid content binding");
+          if (db.update(
+                  "UPDATE job_step SET status='SUCCEEDED' WHERE job_id=? AND step_key='ARTIFACT'"
+                      + " AND status='RUNNING'",
+                  id)
+              != 1) throw new IllegalStateException("Invalid content publication");
+          db.update(
+              "INSERT INTO"
+                  + " analysis_artifact(id,request_id,job_id,snapshot_id,schema_version,artifact_json)"
+                  + " VALUES(?,NULL,?,NULL,'content-artifact-v1',?)",
+              artifactId,
+              id,
+              artifact);
+          db.update(
+              "UPDATE analysis_job SET status='SUCCESS',owner_token=NULL,lease_until=NULL WHERE"
+                  + " id=?",
+              id);
+          db.update(
+              "UPDATE job_attempt SET status='SUCCEEDED',finished_at=UTC_TIMESTAMP(6) WHERE"
+                  + " token=?",
+              token);
+        });
+  }
+
   /** 按依赖顺序读取步骤与已保存的分类结果。 */
   public List<Step> steps(String id) {
     return db.query(
@@ -348,8 +423,8 @@ public class JobStore {
                   != 1) throw new IllegalStateException("Dependency not satisfied");
           if (step.equals("ARTIFACT")
               && db.queryForObject(
-                      "SELECT COUNT(*) FROM job_step WHERE job_id=? AND step_key='DISCUSSION' AND"
-                          + " status='SUCCEEDED'",
+                      "SELECT COUNT(*) FROM job_step WHERE job_id=? AND step_key IN"
+                          + " ('DISCUSSION','CONTENT') AND status='SUCCEEDED'",
                       Integer.class,
                       id)
                   != 1) throw new IllegalStateException("Dependency not satisfied");

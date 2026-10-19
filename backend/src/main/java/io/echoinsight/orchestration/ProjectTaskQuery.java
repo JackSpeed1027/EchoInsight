@@ -56,7 +56,9 @@ public class ProjectTaskQuery {
       boolean feeUncertain,
       boolean canCancel,
       boolean canResume,
-      boolean canRetry) {}
+      boolean canRetry,
+      String inputKind,
+      String materialId) {}
 
   /** 统计始终覆盖本项目全部任务，不随当前列表筛选改变；未知费用不换算成零。 */
   public record Counts(
@@ -97,7 +99,7 @@ public class ProjectTaskQuery {
       ar.instruction,j.snapshot_id,ar.id request_id,r.id report_id,j.created_at,j.attempts,
       j.last_error_code error_code,
       EXISTS(SELECT 1 FROM model_call mc WHERE mc.job_id=j.id
-        AND mc.state IN ('SENT','OUTCOME_UNKNOWN')) fee_uncertain
+        AND mc.state IN ('SENT','OUTCOME_UNKNOWN')) fee_uncertain,'COMMENTS' input_kind,CAST(NULL AS CHAR(36)) material_id
     FROM analysis_job j JOIN data_snapshot s ON s.id=j.snapshot_id
     LEFT JOIN analysis_request ar ON ar.id=j.analysis_request_id
     LEFT JOIN analysis_report r ON r.job_id=j.id
@@ -106,15 +108,28 @@ public class ProjectTaskQuery {
         WHERE ps.project_id=? AND ps.snapshot_id=j.snapshot_id)))
     UNION ALL
     SELECT 'COLLECTION',b.id,b.status,CONVERT(b.canonical_url USING utf8mb4),NULL,b.snapshot_id,NULL,NULL,b.created_at,
-      b.attempts,b.last_error_code,0
+      b.attempts,b.last_error_code,0,'COLLECTION',NULL
     FROM source_collection_batch b WHERE b.project_id=? AND b.workspace_scope=?
+    UNION ALL
+    SELECT 'ANALYSIS',j.id,j.status,CONVERT(JSON_UNQUOTE(JSON_EXTRACT(c.selection_json,'$.material.title')) USING utf8mb4),
+      c.instruction,NULL,NULL,NULL,j.created_at,j.attempts,j.last_error_code,
+      EXISTS(SELECT 1 FROM model_call mc WHERE mc.job_id=j.id AND mc.state IN ('SENT','OUTCOME_UNKNOWN')),'CONTENT',c.material_id
+    FROM content_analysis_input c JOIN analysis_job j ON j.id=c.job_id
+    WHERE c.project_id=? AND j.execution_scope=? AND j.job_kind='CONTENT'
     """;
   }
 
   /** 与source中的固定占位符一一对应，用户值不会直接拼接为SQL。 */
   private List<Object> arguments(String projectId) {
     return new ArrayList<>(
-        List.of(executionScope, projectId, projectId, projectId, projects.workspace()));
+        List.of(
+            executionScope,
+            projectId,
+            projectId,
+            projectId,
+            projects.workspace(),
+            projectId,
+            executionScope));
   }
 
   /** 同时校验资格、合法筛选和分页；条件改变只影响当前items，不改变Counts。 */
@@ -271,6 +286,8 @@ public class ProjectTaskQuery {
         uncertain,
         TaskPolicy.canCancel(state),
         TaskPolicy.canResume(state, uncertain),
-        TaskPolicy.canRetry(state, uncertain));
+        TaskPolicy.canRetry(state, uncertain),
+        r.getString("input_kind"),
+        r.getString("material_id"));
   }
 }

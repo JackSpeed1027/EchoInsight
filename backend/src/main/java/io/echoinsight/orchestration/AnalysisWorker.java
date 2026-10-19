@@ -31,6 +31,7 @@ public class AnalysisWorker {
   private final ObjectMapper json;
   private final AnalysisRequestStore requests;
   private final DiscussionAnalysisService discussions;
+  private final io.echoinsight.content.ContentAnalysisService content;
 
   /** 注入本类需要的依赖，避免在业务方法中自行创建连接或组件。 */
   @Autowired
@@ -42,7 +43,9 @@ public class AnalysisWorker {
       ObjectMapper json,
       LeaseKeeper leases,
       AnalysisRequestStore requests,
-      DiscussionAnalysisService discussions) {
+      DiscussionAnalysisService discussions,
+      io.echoinsight.content.ContentAnalysisService content) {
+    this.content = content;
     this.leases = leases;
     this.store = store;
     this.imports = imports;
@@ -51,6 +54,19 @@ public class AnalysisWorker {
     this.json = json;
     this.requests = requests;
     this.discussions = discussions;
+  }
+
+  /** 保留旧讨论构造入口；生产构造器显式注入独立内容业务服务。 */
+  public AnalysisWorker(
+      JobStore store,
+      ImportMapper imports,
+      BatchClassifier classifier,
+      ReportBuilder reports,
+      ObjectMapper json,
+      LeaseKeeper leases,
+      AnalysisRequestStore requests,
+      DiscussionAnalysisService discussions) {
+    this(store, imports, classifier, reports, json, leases, requests, discussions, null);
   }
 
   /**
@@ -65,7 +81,7 @@ public class AnalysisWorker {
       ReportBuilder reports,
       ObjectMapper json,
       LeaseKeeper leases) {
-    this(store, imports, classifier, reports, json, leases, null, null);
+    this(store, imports, classifier, reports, json, leases, null, null, null);
   }
 
   /**
@@ -87,6 +103,11 @@ public class AnalysisWorker {
           || !plan.promptVersion().equals(job.promptVersion())
           || !plan.taxonomyVersion().equals(job.taxonomyVersion()))
         throw new ModelContract.Failure("MODEL_UNSUPPORTED_VERSION");
+      if ("CONTENT".equals(job.kind())) {
+        if (content == null) throw new IllegalStateException("Content service unavailable");
+        content.run(job, token, plan, lease::check);
+        return;
+      }
       var snapshot = imports.snapshot(job.snapshotId());
       var input = json.readValue(snapshot.documentJson(), ImportDocument.class);
       if ("DISCUSSION".equals(job.kind())) {

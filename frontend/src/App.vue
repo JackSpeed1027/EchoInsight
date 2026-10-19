@@ -52,6 +52,7 @@ function readRoute(): Route {
       'sets',
       'insight',
       'tasks',
+      'content',
       'history',
       'goal',
       'import',
@@ -106,6 +107,10 @@ function openInsight(snapshot: string) {
 /** 从任务中心恢复明确的原请求；浏览器返回仍可回到任务列表。 */
 function openTaskRequest(snapshot: string, request: string) {
   navigate({ project: route.value.project, tab: 'insight', snapshot, request })
+}
+/** 从任务中心打开独立内容任务，job仍为原任务身份，不能走评论报告分支。 */
+function openContent(job: string) {
+  navigate({ project: route.value.project, tab: 'content', job })
 }
 /** 兼容早期全局记录，不让旧分享链接失效，也不自动归到一个项目。 */
 function openLegacy(item: { id: string }) {
@@ -227,6 +232,7 @@ onUnmounted(() => window.removeEventListener('popstate', pop))
           @analysis="openAnalysis"
           @insight="openInsight"
           @request="openTaskRequest"
+          @content="openContent"
         />
         <StandaloneAnalysis
           v-else-if="route.view === 'report' && route.job"

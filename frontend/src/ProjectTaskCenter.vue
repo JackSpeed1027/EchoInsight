@@ -10,6 +10,7 @@ const emit = defineEmits<{
   request: [snapshotId: string, requestId: string]
   analysis: [snapshotId: string, jobId: string]
   materials: []
+  content: [jobId: string]
 }>()
 const result = ref<(Page<ProjectTask> & { counts: TaskCounts }) | null>(null)
 const kind = ref('ALL'),
@@ -48,7 +49,8 @@ function turn(next: number) {
 }
 /** 明确携带原快照和原请求进入报告，采集成功则回资料列表。 */
 function open(task: ProjectTask) {
-  if (task.kind === 'COLLECTION') emit('materials')
+  if (task.inputKind === 'CONTENT') emit('content', task.id)
+  else if (task.kind === 'COLLECTION') emit('materials')
   else if (task.snapshotId && task.requestId) emit('request', task.snapshotId, task.requestId)
   else if (task.snapshotId) emit('analysis', task.snapshotId, task.id)
 }
@@ -125,7 +127,14 @@ onUnmounted(() => {
           :class="{ chosen: selected?.id === item.id && selected?.kind === item.kind }"
         >
           <p class="small">
-            {{ item.kind === 'ANALYSIS' ? '分析任务' : '采集任务' }} · {{ item.createdAt }}
+            {{
+              item.inputKind === 'CONTENT'
+                ? '内容分析'
+                : item.kind === 'ANALYSIS'
+                  ? '分析任务'
+                  : '采集任务'
+            }}
+            · {{ item.createdAt }}
           </p>
           <h3>{{ item.title }}</h3>
           <p v-if="item.instruction" class="task-question">{{ item.instruction }}</p>

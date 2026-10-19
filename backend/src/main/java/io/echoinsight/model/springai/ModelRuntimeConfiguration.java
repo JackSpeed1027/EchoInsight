@@ -26,6 +26,14 @@ public class ModelRuntimeConfiguration {
     return DeepSeekSpringAiFactory.create(settings.apiKey(), plans.current());
   }
 
+  /** 独立内容适配器仅在服务器显式启用时注册，构造不触发真实调用。 */
+  @Bean
+  @ConditionalOnProperty(name = "echoinsight.model.enabled", havingValue = "true")
+  public SpringAiContentProvider deepSeekContentProvider(
+      ModelSettings settings, ConfiguredModelPlan plans) {
+    return DeepSeekSpringAiFactory.createContent(settings.apiKey(), plans.content());
+  }
+
   /** 讨论协议与分类协议使用独立提示，但共享任务计划来源、调用网关和持久账本。 */
   @Bean
   @ConditionalOnProperty(name = "echoinsight.model.enabled", havingValue = "true")
