@@ -177,6 +177,75 @@ class SpringAiContentProviderTest {
         .hasMessageContaining("MODEL_UNSUPPORTED_VERSION");
   }
 
+  /** v3实际MAP提示不包含网关批号、全篇版本或总片数；v2仍保持原序列化请求。 */
+  @Test
+  void localMapPromptHasOnlyDeclaredSemanticDependencies() {
+    var old = fullRequest("MAP");
+    var local =
+        new ContentFullContract.Request(
+            io.echoinsight.content.ContentReuse.PROMPT,
+            "local-content",
+            old.title(),
+            old.format(),
+            old.sourceDescription(),
+            old.instruction(),
+            "MAP",
+            17,
+            old.selection(),
+            null,
+            10000,
+            4096);
+    var prompt = ContentFullPrompt.build(local, "fixture");
+    assertThat(prompt.getInstructions().getLast().getText())
+        .isEqualTo(ModelContract.encode(io.echoinsight.content.ContentReuse.payload(local)))
+        .doesNotContain("batchIndex", "maxInputTokens", "summaries");
+    assertThat(prompt.getInstructions().getFirst().getText()).contains("局部别名e1");
+    assertThat(ContentFullPrompt.build(old, "fixture").getInstructions().getLast().getText())
+        .isEqualTo(ModelContract.encode(old));
+  }
+
+  /** v3新提示与旧taxonomy混用在任何网络调用之前拒绝。 */
+  @Test
+  void validatesV3ProtocolPairBeforeSending() {
+    var p =
+        new ModelContract.Plan(
+            "SPRING_AI",
+            "fixture",
+            io.echoinsight.content.ContentReuse.PROMPT,
+            io.echoinsight.content.ContentReuse.TAXONOMY,
+            100,
+            5000,
+            4096,
+            "USD_NANOS",
+            "fixture",
+            1,
+            1,
+            100000,
+            10000,
+            "fixture",
+            "MODEL");
+    provider(VALID, "stop", "fixture", true).validatePlan(p);
+    var mixed =
+        new ModelContract.Plan(
+            p.providerId(),
+            p.modelVersion(),
+            p.promptVersion(),
+            ContentFullContract.TAXONOMY,
+            p.batchSize(),
+            p.timeoutMs(),
+            p.maxOutputTokens(),
+            p.unit(),
+            p.priceVersion(),
+            p.inputUnitRate(),
+            p.outputUnitRate(),
+            p.budgetLimit(),
+            p.inputTokenCeiling(),
+            p.responseModel(),
+            p.executionMode());
+    assertThatThrownBy(() -> provider(VALID, "stop", "fixture", true).validatePlan(mixed))
+        .hasMessageContaining("MODEL_UNSUPPORTED_VERSION");
+  }
+
   /** 原文与中间摘要都属于数据，REDUCE明确不含selection原文。 */
   private ContentFullContract.Request fullRequest(String phase) {
     var summary =

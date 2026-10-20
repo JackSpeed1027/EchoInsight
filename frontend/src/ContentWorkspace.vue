@@ -5,6 +5,8 @@ import { readApi, type Page } from './projectApi'
 import { budgetText, taskState } from './taskCenter'
 import {
   contentRange,
+  contentReuseCount,
+  type ContentHistory,
   contentProgressText,
   contentLocation,
   type ContentMaterial,
@@ -40,15 +42,13 @@ const active = ref<ContentAnalysis | null>(null),
 const raw = ref<Page<ContentSegment> | null>(null),
   rawPage = ref(1),
   search = ref('')
-const history = ref<Page<{
-  jobId: string
-  materialId: string
-  title: string
-  instruction: string
-  status: string
-  createdAt: string
-  coverageMode?: string
-}> | null>(null)
+const history = ref<Page<ContentHistory> | null>(null)
+const candidates = ref<Page<ContentHistory> | null>(null),
+  candidatePage = ref(1),
+  baseline = ref<ContentHistory | null>(null),
+  baselineId = ref(''),
+  candidateError = ref('')
+let candidateGeneration = 0
 const historyPage = ref(1)
 let generation = 0,
   rawGeneration = 0,
@@ -82,6 +82,7 @@ async function load() {
   busy.value = false
   uploading.value = false
   parent.value = null
+  resetBaseline()
   from.value = ''
   to.value = ''
   consent.value = false
@@ -175,8 +176,9 @@ async function choose(item: ContentMaterial) {
   to.value = ''
   search.value = ''
   rawPage.value = 1
+  resetBaseline()
   invalidate()
-  await loadRaw()
+  await Promise.all([loadRaw(), loadCandidates()])
 }
 /** 只读分页/子串查找原文，原文直接转义展示；不能将它当语义检索结果。 */
 async function loadRaw() {
@@ -216,6 +218,7 @@ function body() {
     ...contentRange(from.value, to.value),
     allowPartialInput: consent.value,
     coverageMode: coverageMode.value,
+    ...(baselineId.value ? { baselineJobId: baselineId.value } : {}),
   }
 }
 /** 只读预检，清楚显示范围、遗漏和费用上界，没有模型调用。 */
@@ -306,8 +309,9 @@ async function open(id: string) {
     selected.value = value.input.material
     rawPage.value = 1
     search.value = ''
+    resetBaseline()
     invalidate()
-    await loadRaw()
+    await Promise.all([loadRaw(), loadCandidates()])
     await refreshCurrent()
   } catch (caught) {
     if (version === generation)
@@ -336,6 +340,50 @@ async function materialTurn(next: number) {
       error.value = caught instanceof Error ? caught.message : '材料翻页失败。'
   }
 }
+/** 切换材料/项目时丢弃候选与未提交基准，防止迟到响应串入另一版本。 */
+function resetBaseline() {
+  candidateGeneration++
+  candidates.value = null
+  candidatePage.value = 1
+  baseline.value = null
+  baselineId.value = ''
+  candidateError.value = ''
+}
+/** 基准候选由服务端按目标版本分页，不在浏览器下载全部历史猜测最新任务。 */
+async function loadCandidates(next = 1) {
+  if (!selected.value) return
+  const requestVersion = ++candidateGeneration,
+    projectVersion = generation,
+    id = selected.value.id
+  candidateError.value = ''
+  try {
+    const query = new URLSearchParams({ baselineForMaterialId: id, page: String(next), size: '6' })
+    const value = await readApi<Page<ContentHistory>>(`${base()}/content-analyses?${query}`)
+    if (
+      requestVersion !== candidateGeneration ||
+      projectVersion !== generation ||
+      selected.value?.id !== id
+    )
+      return
+    candidates.value = value
+    candidatePage.value = next
+  } catch (caught) {
+    if (requestVersion === candidateGeneration && projectVersion === generation)
+      candidateError.value = caught instanceof Error ? caught.message : '复用候选读取失败。'
+  }
+}
+/** 显式选择才复用；沿用原问题便于核对，改问题时应先选择全部重新分析。 */
+function selectBaseline() {
+  baseline.value = candidates.value?.items.find((item) => item.jobId === baselineId.value) || null
+  if (baseline.value) question.value = baseline.value.instruction
+  invalidate()
+}
+/** 有限方式没有跨版本分片复用；切换时清除未提交的选择。 */
+function changeMode() {
+  baselineId.value = ''
+  baseline.value = null
+  invalidate()
+}
 /** 原文翻页不改变已冻结输入或报告。 */
 function rawTurn(next: number) {
   rawPage.value = next
@@ -363,6 +411,7 @@ onUnmounted(() => {
   generation++
   rawGeneration++
   previewGeneration++
+  candidateGeneration++
   stop()
 })
 </script>
@@ -439,15 +488,64 @@ onUnmounted(() => {
         {{ selected.segmentCount }}段，原材料版本固定。选择新版本不会改写旧任务。
       </p>
       <label
-        >你想了解什么<textarea v-model="question" maxlength="1000" rows="3" @input="invalidate" />
+        >你想了解什么<textarea
+          v-model="question"
+          maxlength="1000"
+          rows="3"
+          :readonly="!!baselineId"
+          @input="invalidate"
+        />
       </label>
       <label
         >处理范围
-        <select v-model="coverageMode" @change="invalidate">
+        <select v-model="coverageMode" @change="changeMode">
           <option value="FULL">完整处理所选范围</option>
           <option value="PREFIX">仅分析前部（有限预览）</option>
         </select>
       </label>
+      <div v-if="coverageMode === 'FULL'" class="content-reuse">
+        <label
+          >分析方式
+          <select v-model="baselineId" @change="selectBaseline">
+            <option value="">全部重新分析</option>
+            <option
+              v-if="baseline && !candidates?.items.some((item) => item.jobId === baseline?.jobId)"
+              :value="baseline.jobId"
+            >
+              已选基准：{{ baseline.instruction }} · {{ baseline.createdAt }}
+            </option>
+            <option v-for="item in candidates?.items" :key="item.jobId" :value="item.jobId">
+              {{ item.materialId === selected.id ? '当前版本' : '前一版本' }} ·
+              {{ item.instruction }} · {{ item.createdAt }} · {{ item.jobId.slice(0, 8) }}
+            </option>
+          </select>
+        </label>
+        <p class="small">
+          可选择当前材料或直接前一版本的已完成新版报告。仅输入和模型计划完全一致的分片可复用，每次仍重新汇总；复用也会保留旧归纳的误读。
+        </p>
+        <p v-if="baseline" class="small">
+          沿用基准问题；修改问题请先选择“全部重新分析”。当前基准：{{ baseline.jobId }}
+        </p>
+        <p v-if="candidates && !candidates.total" class="small">
+          暂无可选基准。旧协议报告和免费结构演示不能复用。
+        </p>
+        <p v-if="candidateError" role="alert" class="error">{{ candidateError }}</p>
+        <div v-if="candidates && candidates.totalPages > 1" class="pagination">
+          <button :disabled="candidatePage <= 1" @click="loadCandidates(candidatePage - 1)">
+            上一基准页
+          </button>
+          <span>{{ candidatePage }} / {{ candidates.totalPages }}</span>
+          <button
+            :disabled="candidatePage >= candidates.totalPages"
+            @click="loadCandidates(candidatePage + 1)"
+          >
+            下一基准页
+          </button>
+        </div>
+        <button type="button" class="quiet" @click="loadCandidates(candidatePage)">
+          刷新可选基准
+        </button>
+      </div>
       <div v-if="timed" class="content-range">
         <label
           >字幕起点（秒，可空）<input
@@ -490,7 +588,9 @@ onUnmounted(() => {
             budgetText(preview.reservationUnits, preview.budgetUnit)
           }}
           <span v-if="preview.input.fullPlan"
-            >（{{ preview.input.fullPlan.chunks.length }}次分片＋1次汇总；免费模式不出站）</span
+            >（复用{{ contentReuseCount(preview.input) }}片；新分片{{
+              preview.input.fullPlan.chunks.length - contentReuseCount(preview.input)
+            }}次＋重新汇总1次；免费模式不出站）</span
           >
         </p>
         <p v-if="!preview.budgetSufficient" class="error">预算不足，不能提交。</p>
@@ -555,6 +655,12 @@ onUnmounted(() => {
         <ExecutionDetails :job-id="active.jobId" :status="active.status" />
       </details>
       <template v-if="active.artifact">
+        <p v-if="active.artifact.sourceMode === 'LOCAL_STUB'" class="scope-copy">
+          本报告来自内存供应商工程验收（LOCAL_STUB），不是真实模型的语义质量成绩。
+        </p>
+        <p v-else-if="active.artifact.sourceMode === 'MODEL'" class="small">
+          本报告来自模型分析；原文引用和输入处理完成不代表语义已经独立核验。
+        </p>
         <p v-if="active.artifact.sourceMode === 'STRUCTURAL_DEMO'" class="scope-copy">
           这是结构演示，只展示材料和范围，尚未执行语义分析。
         </p>
@@ -615,6 +721,24 @@ onUnmounted(() => {
               <li v-for="note in chunk.uncertainties" :key="note">{{ note }}</li>
             </ul>
           </article>
+        </details>
+        <details v-if="active.artifact.processing?.reuse?.reusedChunks">
+          <summary>查看复用来源（{{ active.artifact.processing.reuse.reusedChunks }}片）</summary>
+          <p class="small">
+            基准
+            {{
+              active.artifact.processing.reuse.baselineJobId
+            }}。仅复用分片，已重新汇总；历史费用留在原任务，不计为本任务新调用。
+          </p>
+          <p
+            v-for="origin in active.artifact.processing.reuse.origins"
+            :key="origin.index"
+            class="small"
+          >
+            当前第{{ origin.index + 1 }}片 ← 原任务 {{ origin.sourceJobId }} 第{{
+              origin.sourceBatchIndex + 1
+            }}片
+          </p>
         </details>
         <h4>仍需核对的信息</h4>
         <ul>

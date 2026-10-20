@@ -43,8 +43,7 @@ public final class SpringAiContentProvider implements ContentModelContract.Provi
         || !responseModel.equals(plan.expectedResponseModel())
         || !(ContentModelContract.PROMPT.equals(plan.promptVersion())
                 && ContentModelContract.TAXONOMY.equals(plan.taxonomyVersion())
-            || ContentFullContract.PROMPT.equals(plan.promptVersion())
-                && ContentFullContract.TAXONOMY.equals(plan.taxonomyVersion())))
+            || ContentFullContract.supports(plan)))
       throw new ModelContract.Failure("MODEL_UNSUPPORTED_VERSION");
   }
 

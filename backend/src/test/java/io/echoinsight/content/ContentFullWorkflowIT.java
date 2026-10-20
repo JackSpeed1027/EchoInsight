@@ -103,8 +103,7 @@ class ContentFullWorkflowIT {
               assertThat(item.jobId()).isEqualTo(old.analysis().jobId());
               assertThat(item.coverageMode()).isEqualTo("PREFIX");
             });
-    assertThat(jobs.plan(full.analysis().jobId()).promptVersion())
-        .isEqualTo(ContentFullContract.PROMPT);
+    assertThat(jobs.plan(full.analysis().jobId()).promptVersion()).isEqualTo(ContentReuse.PROMPT);
     assertThat(jobs.plan(old.analysis().jobId()).promptVersion())
         .isEqualTo(ContentModelContract.PROMPT);
   }

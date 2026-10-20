@@ -144,8 +144,8 @@ public final class ConfiguredModelPlan {
     return new ModelContract.Plan(
         base.providerId(),
         base.modelVersion(),
-        io.echoinsight.content.ContentFullContract.PROMPT,
-        io.echoinsight.content.ContentFullContract.TAXONOMY,
+        io.echoinsight.content.ContentReuse.PROMPT,
+        io.echoinsight.content.ContentReuse.TAXONOMY,
         100,
         base.timeoutMs(),
         base.maxOutputTokens(),

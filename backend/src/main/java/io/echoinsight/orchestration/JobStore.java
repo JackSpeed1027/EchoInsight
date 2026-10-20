@@ -276,8 +276,7 @@ public class JobStore {
   /** 新旧内容产物显式匹配冻结协议，原发布租约/步骤/任务事务不变。 */
   public void publishContent(
       String id, String token, String artifactId, String artifact, String schema) {
-    boolean full =
-        io.echoinsight.content.ContentFullContract.PROMPT.equals(plan(id).promptVersion());
+    boolean full = io.echoinsight.content.ContentFullContract.supports(plan(id));
     if (!(full ? "content-artifact-v2" : "content-artifact-v1").equals(schema))
       throw new IllegalArgumentException("Content artifact protocol mismatch");
     tx.executeWithoutResult(

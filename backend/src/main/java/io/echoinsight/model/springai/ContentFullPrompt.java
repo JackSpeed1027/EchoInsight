@@ -46,13 +46,18 @@ public final class ContentFullPrompt {
             .maxTokens(request.maxOutputTokens())
             .internalToolExecutionEnabled(false)
             .build();
+    boolean local = ContentReuse.PROMPT.equals(request.promptVersion());
+    String localRules =
+        local ? "v3协议：MAP的selection统计仅指本片，不能据此猜测整篇长度或位置。局部别名e1起，仅供引用，不是原版本ID。\n" : "";
+    Object data = local && "MAP".equals(request.phase()) ? ContentReuse.payload(request) : request;
     return new Prompt(
         List.of(
             new SystemMessage(
                 common
                     + phase
+                    + localRules
                     + new BeanOutputConverter<>(ContentModelContract.Payload.class).getFormat()),
-            new UserMessage(ModelContract.encode(request))),
+            new UserMessage(ModelContract.encode(data))),
         options);
   }
 }

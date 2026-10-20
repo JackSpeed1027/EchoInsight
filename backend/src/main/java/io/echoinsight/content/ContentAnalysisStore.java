@@ -48,10 +48,21 @@ public class ContentAnalysisStore {
   public record Frozen(
       ContentMaterialStore.Summary material,
       ContentSelection selection,
-      ContentChunkPlan fullPlan) {
+      ContentChunkPlan fullPlan,
+      @com.fasterxml.jackson.annotation.JsonInclude(
+              com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+          ContentReuse.Plan reusePlan) {
+    /** 兼容v2冻结记录和旧调用，不为旧任务补写复用清单。 */
+    public Frozen(
+        ContentMaterialStore.Summary material,
+        ContentSelection selection,
+        ContentChunkPlan fullPlan) {
+      this(material, selection, fullPlan, null);
+    }
+
     /** 历史前缀输入保留原含义，缺失fullPlan不推断为完整方式。 */
     public Frozen(ContentMaterialStore.Summary material, ContentSelection selection) {
-      this(material, selection, null);
+      this(material, selection, null, null);
     }
   }
 
@@ -99,7 +110,8 @@ public class ContentAnalysisStore {
       String synthesisStatus,
       int plannedCalls,
       int successfulCalls,
-      String phase) {}
+      String phase,
+      int reusedChunks) {}
 
   /** 历史列表只含摘要，不下载所有原文与报告。 */
   public record Summary(
@@ -110,7 +122,8 @@ public class ContentAnalysisStore {
       String status,
       String errorCode,
       String createdAt,
-      String coverageMode) {}
+      String coverageMode,
+      boolean reuseCapable) {}
 
   /** 兼容旧调用，未指定方式时仍为前缀，不改旧幂等输入或提示版本。 */
   @Transactional(readOnly = true)
@@ -122,6 +135,20 @@ public class ContentAnalysisStore {
   @Transactional(readOnly = true)
   public Preview preview(
       String p, String materialId, String instruction, Long from, Long to, String coverageMode) {
+    return preview(p, materialId, instruction, from, to, coverageMode, null);
+  }
+
+  /** 复用只来自用户明确选择的同项目成功基准，资格和费用在创建时仍会重新核验。 */
+  @Transactional(readOnly = true)
+  public Preview preview(
+      String p,
+      String materialId,
+      String instruction,
+      Long from,
+      Long to,
+      String coverageMode,
+      String baselineJobId) {
+    baselineJobId = baselineId(baselineJobId);
     validateInstruction(instruction);
     boolean full = fullMode(coverageMode);
     var material = materials.get(p, materialId);
@@ -131,7 +158,14 @@ public class ContentAnalysisStore {
             : ContentSelection.select(material, from, to);
     var chunkPlan = full ? ContentChunkPlan.create(selected) : null;
     var plan = full ? plans.contentFull() : plans.content();
-    int calls = full ? chunkPlan.chunks().size() + 1 : 1;
+    if (baselineJobId != null && !full) throw invalid("仅完整内容分析支持选择复用基准");
+    var frozen = new Frozen(material.summary(), selected, chunkPlan);
+    var reuse =
+        full && ContentReuse.enabled(plan)
+            ? prepareReuse(p, frozen, instruction.strip(), plan, baselineJobId)
+            : null;
+    if (baselineJobId != null && reuse == null) throw invalid("当前协议不支持复用，请不选基准重新分析");
+    int calls = full ? chunkPlan.chunks().size() - (reuse == null ? 0 : reuse.reused()) + 1 : 1;
     long perCall =
         "MOCK".equals(plan.reportMode())
             ? 0
@@ -141,7 +175,7 @@ public class ContentAnalysisStore {
     if (perCall > Long.MAX_VALUE / calls) throw invalid("全部调用费用上界溢出，不能接受任务");
     long reservation = perCall * calls;
     return new Preview(
-        new Frozen(material.summary(), selected, chunkPlan),
+        new Frozen(material.summary(), selected, chunkPlan, reuse),
         plan.reportMode(),
         reservation,
         plan.budgetLimit(),
@@ -182,7 +216,24 @@ public class ContentAnalysisStore {
       Long to,
       boolean allowPartial,
       String coverageMode) {
+    return create(p, key, materialId, instruction, from, to, allowPartial, coverageMode, null);
+  }
+
+  /** 基准身份参与幂等；接受时复制合格响应及出处，不依赖执行时再次查询项目“最新”报告。 */
+  @Transactional
+  public Created create(
+      String p,
+      String key,
+      String materialId,
+      String instruction,
+      Long from,
+      Long to,
+      boolean allowPartial,
+      String coverageMode,
+      String baselineJobId) {
+    baselineJobId = baselineId(baselineJobId);
     boolean full = fullMode(coverageMode);
+    if (baselineJobId != null && !full) throw invalid("仅完整内容分析支持选择复用基准");
     ContentMaterialStore.validateKey(key);
     validateInstruction(instruction);
     projects.lock(p);
@@ -190,9 +241,12 @@ public class ContentAnalysisStore {
     String requestHash =
         ReferenceMaterialStore.hash(
             encode(
-                full
-                    ? Arrays.asList(materialId, question, from, to, allowPartial, "FULL")
-                    : Arrays.asList(materialId, question, from, to, allowPartial)));
+                baselineJobId != null
+                    ? Arrays.asList(
+                        materialId, question, from, to, allowPartial, "FULL", baselineJobId)
+                    : full
+                        ? Arrays.asList(materialId, question, from, to, allowPartial, "FULL")
+                        : Arrays.asList(materialId, question, from, to, allowPartial)));
     var old =
         db.queryForList(
             "SELECT job_id,request_sha256 FROM content_analysis_input WHERE project_id=? AND"
@@ -204,7 +258,7 @@ public class ContentAnalysisStore {
         throw conflict("该请求键已用于其他内容版本、问题或范围");
       return new Created(get(p, (String) old.getFirst().get("job_id")), false);
     }
-    var prepared = preview(p, materialId, question, from, to, coverageMode);
+    var prepared = preview(p, materialId, question, from, to, coverageMode, baselineJobId);
     if (prepared.input().selection().segments().isEmpty()) throw invalid("所选范围没有正文，请调整材料或时间范围");
     if (prepared.requiresPartialConsent() && !allowPartial)
       throw invalid("材料超出本次输入上限，请缩小时间范围或明确同意有限输入");
@@ -266,7 +320,8 @@ public class ContentAnalysisStore {
   /** 只读取最多25个原批次状态，取消/失败时同样保留已成功片数。 */
   private Progress progress(String id, Frozen frozen) {
     if (frozen.fullPlan() == null) return null;
-    int count = frozen.fullPlan().chunks().size(), maps = 0, successful = 0;
+    int reused = frozen.reusePlan() == null ? 0 : frozen.reusePlan().reused();
+    int count = frozen.fullPlan().chunks().size(), maps = reused, successful = 0;
     String synthesis = "NOT_STARTED";
     for (var row :
         db.queryForList(
@@ -275,6 +330,10 @@ public class ContentAnalysisStore {
       String state = (String) row.get("status");
       if (index < 0 || index > count)
         throw new IllegalStateException("Invalid content batch identity");
+      if (index < count
+          && frozen.reusePlan() != null
+          && frozen.reusePlan().entries().get(index).cached() != null)
+        throw new IllegalStateException("Reused content has unexpected new call");
       if ("SUCCEEDED".equals(state)) {
         successful++;
         if (index < count) maps++;
@@ -286,11 +345,12 @@ public class ContentAnalysisStore {
         count,
         maps,
         demo ? "NOT_EXECUTED" : synthesis,
-        count + 1,
+        count - reused + 1,
         successful,
         demo
             ? "STRUCTURAL_DEMO"
-            : "SUCCEEDED".equals(synthesis) ? "COMPLETE" : maps == count ? "REDUCE" : "MAP");
+            : "SUCCEEDED".equals(synthesis) ? "COMPLETE" : maps == count ? "REDUCE" : "MAP",
+        reused);
   }
 
   /** 工作者只读取自己已领取任务的冻结输入，绝不查项目最新材料来替代。 */
@@ -301,18 +361,40 @@ public class ContentAnalysisStore {
   /** 稳定分页问题历史，只展示同项目及同服务器执行范围。 */
   @Transactional(readOnly = true)
   public ProjectStore.Page<Summary> list(String p, int page, int size) {
+    return list(p, page, size, null);
+  }
+
+  /** 基准候选沿用历史分页；先验证目标材料资格，再限定当前/直接父版本的成功v3语义任务。 */
+  @Transactional(readOnly = true)
+  public ProjectStore.Page<Summary> list(
+      String p, int page, int size, String baselineForMaterialId) {
     projects.get(p);
     ContentMaterialStore.validatePage(page, size);
+    var args = new ArrayList<Object>(List.of(p, scope));
     String where =
         " FROM content_analysis_input c JOIN analysis_job j ON j.id=c.job_id WHERE c.project_id=?"
             + " AND j.execution_scope=?";
-    long total = db.queryForObject("SELECT COUNT(*)" + where, Long.class, p, scope);
+    if (baselineForMaterialId != null) {
+      var target = materials.get(p, baselineForMaterialId).summary();
+      where +=
+          " AND (c.material_id=? OR c.material_id=?) AND j.prompt_version=? AND j.status='SUCCESS'"
+              + " AND JSON_UNQUOTE(JSON_EXTRACT(j.execution_plan_json,'$.executionMode')) IN"
+              + " ('MODEL','LOCAL_STUB')";
+      args.add(target.id());
+      args.add(target.previousId());
+      args.add(ContentReuse.PROMPT);
+    }
+    long total = db.queryForObject("SELECT COUNT(*)" + where, Long.class, args.toArray());
+    args.add(size);
+    args.add((page - 1) * size);
     var rows =
         db.query(
             "SELECT"
                 + " c.job_id,c.material_id,JSON_UNQUOTE(JSON_EXTRACT(c.selection_json,'$.material.title'))"
                 + " title,c.instruction,j.status,j.last_error_code,DATE_FORMAT(c.created_at,'%Y-%m-%d"
-                + " %H:%i:%s') created_time,j.prompt_version"
+                + " %H:%i:%s')"
+                + " created_time,j.prompt_version,JSON_UNQUOTE(JSON_EXTRACT(j.execution_plan_json,'$.executionMode'))"
+                + " mode"
                 + where
                 + " ORDER BY c.created_at DESC,c.job_id DESC LIMIT ? OFFSET ?",
             (r, n) ->
@@ -324,11 +406,14 @@ public class ContentAnalysisStore {
                     r.getString(5),
                     r.getString(6),
                     r.getString(7),
-                    ContentFullContract.PROMPT.equals(r.getString(8)) ? "FULL" : "PREFIX"),
-            p,
-            scope,
-            size,
-            (page - 1) * size);
+                    Set.of(ContentFullContract.PROMPT, ContentReuse.PROMPT).contains(r.getString(8))
+                        ? "FULL"
+                        : "PREFIX",
+                    ContentReuse.PROMPT.equals(r.getString(8))
+                        && "SUCCESS".equals(r.getString(5))
+                        && Set.of("MODEL", "LOCAL_STUB")
+                            .contains(Objects.toString(r.getString(9), ""))),
+            args.toArray());
     return new ProjectStore.Page<>(List.copyOf(rows), total, page, size, (total + size - 1) / size);
   }
 
@@ -366,7 +451,96 @@ public class ContentAnalysisStore {
             },
             args.toArray());
     if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "内容分析不存在");
-    return rows.getFirst();
+    var result = rows.getFirst();
+    ContentReuse.verify(result.frozen(), result.instruction(), jobs.plan(id));
+    return result;
+  }
+
+  /** 1、验证明确基准资格；2、比局部模型输入指纹；3、只复制原成功响应；4、冻结出处，不初始化新账本。 */
+  private ContentReuse.Plan prepareReuse(
+      String p,
+      Frozen current,
+      String question,
+      io.echoinsight.model.ModelContract.Plan plan,
+      String baselineId) {
+    Input source = null;
+    if (baselineId != null) {
+      source = read(p, baselineId);
+      var sourceJob = jobs.get(baselineId);
+      var sourcePlan = jobs.plan(baselineId);
+      if (!"SUCCESS".equals(sourceJob.status())) throw invalid("复用基准必须是已完成的内容分析");
+      if (!ContentReuse.enabled(sourcePlan) || source.frozen().reusePlan() == null)
+        throw invalid("旧协议报告不能作为复用基准，请先完成一次新版完整分析");
+      if ("MOCK".equals(sourcePlan.reportMode())) throw invalid("免费演示没有语义分片结果，不能作为复用基准");
+      if (!source.instruction().equals(question)) throw invalid("复用基准的问题不同，请保持原问题或不选基准");
+      if (!Objects.equals(source.materialId(), current.material().id())
+          && !Objects.equals(source.materialId(), current.material().previousId()))
+        throw invalid("复用基准只能来自当前材料或它的直接前一版本");
+      if (!encode(sourcePlan).equals(encode(plan))) throw invalid("模型协议或费用计划已变化，请不选基准重新分析");
+      if (db.queryForObject(
+              "SELECT COUNT(*) FROM model_call WHERE job_id=? AND state IN"
+                  + " ('RESERVED','SENT','OUTCOME_UNKNOWN')",
+              Long.class,
+              baselineId)
+          != 0) throw invalid("复用基准存在未决调用，不能复用");
+    }
+    Map<String, ContentReuse.Entry> previous = new HashMap<>();
+    if (source != null)
+      for (var entry : source.frozen().reusePlan().entries())
+        previous.putIfAbsent(entry.inputHash(), entry);
+    List<ContentReuse.Entry> entries = new ArrayList<>();
+    for (var chunk : current.fullPlan().chunks()) {
+      var request = ContentReuse.request(current, question, plan, chunk);
+      String hash = ContentReuse.fingerprint(plan, request);
+      var match = previous.get(hash);
+      ContentReuse.Cached cached = null;
+      if (match != null) {
+        if (match.cached() != null) cached = match.cached();
+        else {
+          var oldChunk = source.frozen().fullPlan().chunks().get(match.index());
+          var oldRequest =
+              ContentReuse.request(source.frozen(), source.instruction(), plan, oldChunk);
+          var rows =
+              db.queryForList(
+                  "SELECT input_hash,result_json FROM model_batch WHERE job_id=? AND batch_index=?"
+                      + " AND status='SUCCEEDED'",
+                  baselineId,
+                  match.index());
+          String expected =
+              io.echoinsight.material.ReferenceMaterialStore.hash(
+                  encode(plan) + encode(oldRequest));
+          if (rows.size() != 1 || !expected.equals(rows.getFirst().get("input_hash")))
+            throw invalid("基准成功分片检查点不可用，请不选基准重新分析");
+          try {
+            var response =
+                json.readValue(
+                    (String) rows.getFirst().get("result_json"),
+                    ContentModelContract.Response.class);
+            ContentFullContract.validate(oldRequest, response);
+            cached =
+                new ContentReuse.Cached(
+                    baselineId,
+                    match.index(),
+                    io.echoinsight.material.ReferenceMaterialStore.hash(encode(response)),
+                    response);
+          } catch (Exception error) {
+            throw invalid("基准成功分片检查点不可用，请不选基准重新分析");
+          }
+        }
+        ContentFullContract.validate(request, cached.response());
+      }
+      entries.add(new ContentReuse.Entry(chunk.index(), hash, cached));
+    }
+    return new ContentReuse.Plan(ContentReuse.VERSION, baselineId, List.copyOf(entries));
+  }
+
+  /** 基准由用户明确选择，空值表示全部重新执行；不自动猜测最近报告。 */
+  private String baselineId(String id) {
+    if (id == null || id.isBlank()) return null;
+    String value = id.strip();
+    if (!value.matches("[A-Za-z0-9_-]{1,64}"))
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "复用基准任务身份无效");
+    return value;
   }
 
   /** 仅支持两个业务处理范围，未知值不静默退回前缀。 */

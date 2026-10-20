@@ -29,12 +29,17 @@ public final class ContentFullContract {
       int maxInputTokens,
       int maxOutputTokens) {}
 
+  /** 保留v2原协议，v3使用独立的局部MAP依赖；混合版本不接受。 */
+  public static boolean supports(ModelContract.Plan plan) {
+    return PROMPT.equals(plan.promptVersion()) && TAXONOMY.equals(plan.taxonomyVersion())
+        || ContentReuse.enabled(plan);
+  }
+
   /** 发送前严格检查阶段、版本、输入边界和摘要闭包，不以供应商输出代替业务范围。 */
   public static void validateRequest(ModelContract.Plan plan, Request r) {
     if (r == null
-        || !PROMPT.equals(plan.promptVersion())
-        || !TAXONOMY.equals(plan.taxonomyVersion())
-        || !PROMPT.equals(r.promptVersion())
+        || !supports(plan)
+        || !plan.promptVersion().equals(r.promptVersion())
         || plan.inputTokenCeiling() == null
         || r.maxInputTokens() != plan.inputTokenCeiling()
         || r.maxOutputTokens() != plan.maxOutputTokens()
@@ -62,6 +67,7 @@ public final class ContentFullContract {
         chars += segment.text().length();
       }
       if (chars > 12000 || chars != r.selection().selectedChars()) failRequest();
+      if (ContentReuse.enabled(plan)) ContentReuse.validateLocal(r);
     } else if ("REDUCE".equals(r.phase())) {
       if (r.selection() != null
           || r.summaries() == null

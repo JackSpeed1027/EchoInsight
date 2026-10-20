@@ -24,7 +24,8 @@ public class ContentAnalysisController {
       Long fromMs,
       Long toMs,
       Boolean allowPartialInput,
-      String coverageMode) {}
+      String coverageMode,
+      String baselineJobId) {}
 
   /** POST预检只因范围/正文参数需要请求体，不创建任务或预留费用。 */
   @PostMapping("/preview")
@@ -36,7 +37,8 @@ public class ContentAnalysisController {
         body.instruction(),
         body.fromMs(),
         body.toMs(),
-        body.coverageMode());
+        body.coverageMode(),
+        body.baselineJobId());
   }
 
   /** 原任务与冻结输入原子接受，首次201、同键重发200；更改版本或问题409。 */
@@ -54,7 +56,8 @@ public class ContentAnalysisController {
             body.fromMs(),
             body.toMs(),
             Boolean.TRUE.equals(body.allowPartialInput()),
-            body.coverageMode());
+            body.coverageMode(),
+            body.baselineJobId());
     return ResponseEntity.status(created.created() ? 201 : 200).body(created.analysis());
   }
 
@@ -69,7 +72,8 @@ public class ContentAnalysisController {
   public ProjectStore.Page<ContentAnalysisStore.Summary> list(
       @PathVariable String projectId,
       @RequestParam(defaultValue = "1") int page,
-      @RequestParam(defaultValue = "12") int size) {
-    return store.list(projectId, page, size);
+      @RequestParam(defaultValue = "12") int size,
+      @RequestParam(required = false) String baselineForMaterialId) {
+    return store.list(projectId, page, size, baselineForMaterialId);
   }
 }

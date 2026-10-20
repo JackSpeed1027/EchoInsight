@@ -45,6 +45,11 @@ export type ContentInput = {
   material: ContentMaterial
   selection: ContentSelection
   fullPlan?: ContentChunkPlan | null
+  reusePlan?: {
+    version: string
+    baselineJobId: string | null
+    entries: { index: number; inputHash: string; cached: { sourceJobId: string } | null }[]
+  } | null
 }
 export type ContentProgress = {
   plannedChunks: number
@@ -53,6 +58,7 @@ export type ContentProgress = {
   plannedCalls: number
   successfulCalls: number
   phase: string
+  reusedChunks?: number
 }
 export type ContentPreview = {
   input: ContentInput
@@ -89,6 +95,16 @@ export type ContentArtifact = {
     plannedChunks: number
     completedChunks: number
     synthesisStatus: string
+    reuse?: {
+      baselineJobId: string | null
+      reusedChunks: number
+      origins: {
+        index: number
+        sourceJobId: string
+        sourceBatchIndex: number
+        responseHash: string
+      }[]
+    } | null
     chunks: {
       index: number
       findings: { title: string; kind: string; explanation: string; evidenceIds: string[] }[]
@@ -146,5 +162,24 @@ export function contentProgressText(progress?: ContentProgress | null): string {
         : progress.phase === 'REDUCE'
           ? '等待或正在汇总'
           : '尚未完成全部分片'
-  return `已完成${progress.completedChunks}/${progress.plannedChunks}片；${suffix}。输入处理完成不等于语义已验证。`
+  const reuse = progress.reusedChunks
+    ? `其中复用${progress.reusedChunks}片；本任务新调用成功${progress.successfulCalls}/${progress.plannedCalls}次；`
+    : ''
+  return `已完成${progress.completedChunks}/${progress.plannedChunks}片；${reuse}${suffix}。输入处理完成不等于语义已验证。`
+}
+
+/** 预检的逐片凭证才代表可复用；仅选择基准不等于已经命中。 */
+export function contentReuseCount(input: ContentInput): number {
+  return input.reusePlan?.entries.filter((entry) => entry.cached != null).length || 0
+}
+/** 候选只说明版本/协议粗资格，提交仍核对问题、模型计划、响应与费用未决。 */
+export type ContentHistory = {
+  jobId: string
+  materialId: string
+  title: string
+  instruction: string
+  status: string
+  createdAt: string
+  coverageMode?: string
+  reuseCapable?: boolean
 }

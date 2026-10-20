@@ -28,7 +28,10 @@ public final class ContentFullAnalysis {
       int plannedChunks,
       int completedChunks,
       String synthesisStatus,
-      List<ContentFullContract.ChunkSummary> chunks) {}
+      List<ContentFullContract.ChunkSummary> chunks,
+      @com.fasterxml.jackson.annotation.JsonInclude(
+              com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+          ContentReuse.Receipt reuse) {}
 
   /** v2内容产物保留逐片摘要与全局结论；evidence始终是原始文本而非中间摘要。 */
   public record Artifact(
@@ -49,9 +52,7 @@ public final class ContentFullAnalysis {
       throws Exception {
     var input = inputs.byJob(job.id());
     var full = input.frozen().fullPlan();
-    if (full == null
-        || !ContentFullContract.PROMPT.equals(plan.promptVersion())
-        || !ContentFullContract.TAXONOMY.equals(plan.taxonomyVersion()))
+    if (full == null || !ContentFullContract.supports(plan))
       throw new IllegalStateException("Missing frozen full content plan");
     full.verify(input.frozen().selection());
     Artifact artifact;
@@ -69,15 +70,26 @@ public final class ContentFullAnalysis {
         for (var chunk : full.chunks()) {
           check.run();
           jobs.renew(job.id(), token);
+          boolean local = ContentReuse.enabled(plan);
           var request =
-              request(
-                  input,
-                  plan,
-                  "MAP",
-                  chunk.index(),
-                  full.select(input.frozen().selection(), chunk),
-                  null);
-          var response = gateway.analyzeContentFull(job.id(), token, plan, request);
+              local
+                  ? ContentReuse.request(input.frozen(), input.instruction(), plan, chunk)
+                  : request(
+                      input,
+                      plan,
+                      "MAP",
+                      chunk.index(),
+                      full.select(input.frozen().selection(), chunk),
+                      null);
+          var cached =
+              local ? input.frozen().reusePlan().entries().get(chunk.index()).cached() : null;
+          // 复用的是前版已成功、已校验的响应，不初始化本任务model_call或虚构零费用结算。
+          var response =
+              cached == null
+                  ? gateway.analyzeContentFull(job.id(), token, plan, request)
+                  : cached.response();
+          ContentFullContract.validate(request, response);
+          if (local) response = ContentReuse.toOriginal(response, chunk);
           summaries.add(
               new ContentFullContract.ChunkSummary(
                   chunk.index(), response.findings(), response.uncertainties()));
@@ -123,7 +135,10 @@ public final class ContentFullAnalysis {
                   full.chunks().size(),
                   demo ? 0 : summaries.size(),
                   demo ? "NOT_EXECUTED" : "SUCCEEDED",
-                  List.copyOf(summaries)));
+                  List.copyOf(summaries),
+                  input.frozen().reusePlan() == null
+                      ? null
+                      : ContentReuse.receipt(input.frozen().reusePlan())));
       jobs.saveContent(job.id(), token, json.writeValueAsString(artifact));
     }
     check.run();
@@ -147,7 +162,7 @@ public final class ContentFullAnalysis {
       List<ContentFullContract.ChunkSummary> summaries) {
     var material = input.frozen().material();
     return new ContentFullContract.Request(
-        ContentFullContract.PROMPT,
+        plan.promptVersion(),
         input.materialId(),
         material.title(),
         material.format(),

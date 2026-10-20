@@ -214,3 +214,41 @@ HTTP验收发现内容容量422被通用提示遮蔽；已将固定的容量、�
 范围预检/提交失败在当前提问表单内显示，避免错误只出现在长页面顶部而看不到；上传/列表错误仍在各自原入口。该改动经实际超限页面复核。
 
 页面最终版本前端日志为round97-frontend-tests-ui.log、round97-frontend-format-ui.log、round97-frontend-build-ui.log。完整报告和旧有限报告的历史标记经真实MySQL回归核对，均保留原任务身份。
+
+
+## 15. 第98～107轮：修订后的增量内容分析
+
+### 操作与验收顺序
+
+在IDEA继续打开根工程，包名io.echoinsight、主类EchoInsightApplication和本机MySQL保持不变，无新增服务/迁移。前后端启动仍用原scripts入口；先按最新runtime/dev-processes记录核对端口归属，不重复启动。
+
+1. “内容材料”上传TXT/MD/SRT/VTT，使用MODEL配置完成一次新版FULL语义报告；免费模式只检查表单、范围和任务流程，不具备语义缓存响应。
+2. 点材料“上传此版修订”，保存直接子版本。保持问题、标题、来源、模型/费用计划不变，以便稳定局部输入可命中；不要拿两个没有父子关系的文件充当修订。
+3. 选择新版本，从“分析方式”显式选择基准；原问题自动沿用且暂只读。基准候选按服务端分页，只列当前/直接父版本成功v3 MODEL/LOCAL_STUB。生产正常配置只会产生真实MODEL或免费MOCK；LOCAL_STUB是测试供应商。
+4. 预检复用数和新调用数。原片数N、命中K，新调用N−K＋1；全部命中仍新汇总1次。上界是保守估计，实际模型用量/本任务结算看执行记录，历史费用看原任务。
+5. 提交并查看逐片摘要、最终结论、当前原文位置和复用来源。想改问题/强制重新分析时先选“全部重新分析”。不可把结构演示当已完成语义分析，也不把缓存收益当质量提升。
+
+### 实现位置与可维护边界
+
+| 类／页面 | 职责及和原代码的关系 |
+|---|---|
+| ContentReuse | v3局部Payload、严格别名/哈希、完整计划指纹、冻结凭证、当前原文映射及出处投影 |
+| ContentAnalysisStore | 预检/创建时验证基准，原项目锁/幂等事务冻结；历史分页可带目标材料筛候选 |
+| ContentFullAnalysis | 仍为原CONTENT步骤，缓存片不建新账，变化片/每次汇总走原网关 |
+| ContentFullContract / ContentFullPrompt | v2兼容不改；v3模型MAP实际输入与指纹依赖一致，严格引用闭包 |
+| ConfiguredModelPlan / SpringAiContentProvider | 新FULL生成v3；供应商只接受成对提示/输出体系，禁工具/单次出站不放宽 |
+| ContentWorkspace.vue / contentTypes.ts | 明确基准、沿用问题、预检和来源/进度；项目/材料切换丢弃迟到候选 |
+
+没有新增状态表/缓存服务，复用凭证在既有冻结输入中。旧PREFIX v1和FULL v2按原计划恢复，不回填旧JSON；新请求不带基准时旧幂等指纹仍兼容，带基准则身份也包含baselineJobId。同键重发仍返回原任务，即使之后服务器配置改变。
+
+### 错误、取消与恢复
+
+- “暂无可选基准”：免费演示、旧v2、未完成任务或非当前/直接父版本会被排除。完成一次新版语义FULL后刷新候选。
+- “问题不同／模型协议或费用计划已变化”：取消基准，全部重新分析；不自动修改原计划。
+- “基准检查点不可用”：不静默执行补偿调用；不选基准重新提交，保留旧记录用于排查。
+- 0片命中可以正常执行，常见原因是文本开头变化导致后文偏移、窗口/标题/来源改变或分片边界移动。不是系统承诺的全局语义相似缓存。
+- 取消、继续和安全重试仍在任务中心；在途SENT/UNKNOWN不提供强行重试。复用片与新成功片均保留，最终发布仍受原token围栏保护。
+
+回归运行mvn verify、pnpm --dir frontend test、format:check、build，以及python -m unittest discover -s tools -p "test_*.py"。增量测试类ContentReuseTest、ContentReuseWorkflowIT和SpringAiContentProviderTest；集成测试工作空间/执行范围content-reuse-it，真实模型/付费/平台关闭。首次tools/tests路径不存在的命令错误日志保留，正确命令按实际tools目录执行；不是测试逻辑失败。
+
+本批UI/HTTP只用隔离delivery-98-107范围和合成资料；普通运行保持8080/5173，隔离8081/5174完成后按PID/启动时间/命令归属停止。具体测试数量、运行身份与GitHub CI见本机runtime/rounds98-107-delivery-summary.json，不将工程替身记为DeepSeek真实质量成绩。
