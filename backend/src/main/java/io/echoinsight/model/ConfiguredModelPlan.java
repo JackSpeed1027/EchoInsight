@@ -117,6 +117,49 @@ public final class ConfiguredModelPlan {
         "MOCK");
   }
 
+  /** 独立内容背景采用新v8，避免修改历史v4提示和缓存依赖。 */
+  public ModelContract.Plan discussionWithContent() {
+    var base = discussionWithContext();
+    if (!"MODEL".equals(base.reportMode())) return base;
+    return new ModelContract.Plan(
+        base.providerId(),
+        base.modelVersion(),
+        DiscussionPrompt.CONTENT_VERSION,
+        DiscussionPrompt.CONTENT_TAXONOMY,
+        base.batchSize(),
+        base.timeoutMs(),
+        base.maxOutputTokens(),
+        base.unit(),
+        base.priceVersion(),
+        base.inputUnitRate(),
+        base.outputUnitRate(),
+        base.budgetLimit(),
+        base.inputTokenCeiling(),
+        base.responseModel(),
+        base.executionMode());
+  }
+
+  /** 普通评论完整范围使用独立v7图归并，继续沿用原供应商、累计预算和用量上界。 */
+  public ModelContract.Plan discussionDigest() {
+    var base = discussion();
+    return new ModelContract.Plan(
+        base.providerId(),
+        base.modelVersion(),
+        io.echoinsight.intelligence.DiscussionDigestPlan.PROMPT,
+        io.echoinsight.intelligence.DiscussionDigestPlan.TAXONOMY,
+        40,
+        base.timeoutMs(),
+        4096,
+        base.unit(),
+        base.priceVersion(),
+        base.inputUnitRate(),
+        base.outputUnitRate(),
+        base.budgetLimit(),
+        base.inputTokenCeiling(),
+        base.responseModel(),
+        base.executionMode());
+  }
+
   /** 独立内容使用新提示版本，报价、预算、供应商沿用原服务器计划，不回写历史评论任务。 */
   public ModelContract.Plan content() {
     var base = discussion();

@@ -55,6 +55,10 @@ const messages: Record<string, [string, string]> = {
     '当前适配器不支持这份历史执行计划',
     '保留原记录，核对提示/模型版本后再明确创建新任务。',
   ],
+  DIGEST_CAPACITY_EXCEEDED: [
+    '完整讨论超过处理容量',
+    '请拆分资料，系统不会静默截取或自动增加预算。',
+  ],
   MODEL_TIMEOUT: ['等待模型响应超时', '超时不能证明未计费，请先查看调用状态。'],
   MODEL_BUDGET_EXCEEDED: ['本任务剩余预算不足', '检查固定预算与预留，不自动追加额度或换模型。'],
   MODEL_CAPACITY: ['模型出站资源暂满', '等待已有任务结束，再恢复查询或安全重试。'],

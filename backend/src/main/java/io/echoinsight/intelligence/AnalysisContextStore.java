@@ -21,6 +21,8 @@ public class AnalysisContextStore {
   public static final int MAX_SEGMENTS = 40;
   public static final String FOLLOWUP_VERSION = "discussion-context-v3-followup";
   public static final String RETRIEVAL_VERSION = "discussion-context-v2-search";
+  public static final String CONTENT_VERSION = "discussion-context-v4-content";
+  private final io.echoinsight.content.ContentMaterialStore contentMaterials;
   private final io.echoinsight.material.TranscriptMaterialStore transcripts;
   private final io.echoinsight.material.TranscriptRetriever retriever;
   private final JdbcTemplate db;
@@ -35,7 +37,9 @@ public class AnalysisContextStore {
       ReferenceMaterialStore references,
       ObjectMapper json,
       io.echoinsight.material.TranscriptMaterialStore transcripts,
-      io.echoinsight.material.TranscriptRetriever retriever) {
+      io.echoinsight.material.TranscriptRetriever retriever,
+      io.echoinsight.content.ContentMaterialStore contentMaterials) {
+    this.contentMaterials = contentMaterials;
     this.transcripts = transcripts;
     this.retriever = retriever;
     this.db = db;
@@ -47,7 +51,8 @@ public class AnalysisContextStore {
   /** 角色由服务器固定：参考文本是用户提供背景，字幕是当前作品原文，都不是观众评论。 */
   public enum Role {
     REFERENCE_TEXT,
-    TRANSCRIPT
+    TRANSCRIPT,
+    CONTENT_TEXT
   }
 
   /** 模型输入的独立命名空间，保留资料身份、原始字幕段身份和时间，不与评论ID相撞。 */
@@ -60,7 +65,57 @@ public class AnalysisContextStore {
       String sourceSegmentId,
       Long startMs,
       Long endMs,
-      String text) {}
+      String text,
+      @com.fasterxml.jackson.annotation.JsonInclude(
+              com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+          Integer startChar,
+      @com.fasterxml.jackson.annotation.JsonInclude(
+              com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+          Integer endChar) {
+    /** 旧字幕/参考记录没有字符字段，原JSON及检查点编码保持不变。 */
+    public Source(
+        String id,
+        Role role,
+        String materialId,
+        String title,
+        String sourceDescription,
+        String sourceSegmentId,
+        Long startMs,
+        Long endMs,
+        String text) {
+      this(
+          id,
+          role,
+          materialId,
+          title,
+          sourceDescription,
+          sourceSegmentId,
+          startMs,
+          endMs,
+          text,
+          null,
+          null);
+    }
+  }
+
+  /** 所选独立内容的原版本、范围、词法策略与缺口，不能把显式关联当作者认证。 */
+  public record ContentBinding(
+      String materialId,
+      String title,
+      String rawSha256,
+      String segmentsSha256,
+      Long fromMs,
+      Long toMs,
+      String strategy,
+      String querySha256,
+      int totalSegments,
+      int eligibleSegments,
+      int matchedSegments,
+      int selectedSegments,
+      int selectedChars,
+      int oversizedMatches,
+      List<String> segmentIds,
+      List<String> notes) {}
 
   /** 每个选中参考版本都有内容指纹；上下文总字符也明确保存。 */
   public record Reference(String id, String title, String bodySha256) {}
@@ -81,7 +136,38 @@ public class AnalysisContextStore {
           Retrieval retrieval,
       @com.fasterxml.jackson.annotation.JsonInclude(
               com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-          History history) {
+          History history,
+      @com.fasterxml.jackson.annotation.JsonInclude(
+              com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+          ContentBinding content) {
+    /** v3追问记录缺少独立内容绑定时不补字段，兼容原冻结哈希。 */
+    public Selection(
+        String version,
+        String snapshotId,
+        boolean transcriptRequested,
+        int totalTranscriptSegments,
+        int selectedTranscriptSegments,
+        boolean transcriptTruncated,
+        List<Reference> references,
+        List<Source> sources,
+        int textChars,
+        Retrieval retrieval,
+        History history) {
+      this(
+          version,
+          snapshotId,
+          transcriptRequested,
+          totalTranscriptSegments,
+          selectedTranscriptSegments,
+          transcriptTruncated,
+          references,
+          sources,
+          textChars,
+          retrieval,
+          history,
+          null);
+    }
+
     /** 保持第48轮十字段构造可用，旧JSON无history字段。 */
     public Selection(
         String version,
@@ -191,7 +277,8 @@ public class AnalysisContextStore {
             List.copyOf(sources),
             inherited + text.length(),
             previous == null ? null : previous.retrieval(),
-            history);
+            history,
+            previous == null ? null : previous.content());
     return new View(ReferenceMaterialStore.hash(encode(selection)), selection);
   }
 
@@ -207,7 +294,8 @@ public class AnalysisContextStore {
   public static boolean supported(String version) {
     return VERSION.equals(version)
         || RETRIEVAL_VERSION.equals(version)
-        || FOLLOWUP_VERSION.equals(version);
+        || FOLLOWUP_VERSION.equals(version)
+        || CONTENT_VERSION.equals(version);
   }
 
   /** null上下文专门表示历史/纯评论请求，不伪造其背景处理状态。 */
@@ -352,6 +440,91 @@ public class AnalysisContextStore {
                 result.strategy(),
                 result.querySha256(),
                 result.matchedSegments()));
+    return new View(ReferenceMaterialStore.hash(encode(selection)), selection);
+  }
+
+  /** 1、先冻结旧背景；2、核对明确内容版本同项目；3、取有界原文；4、合并并按总限额拒绝，不截断来源。 */
+  @Transactional(readOnly = true)
+  public View prepareAll(
+      String projectId,
+      String snapshotId,
+      boolean includeTranscript,
+      List<String> referenceIds,
+      String transcriptMaterialId,
+      String instruction,
+      String contentMaterialId,
+      Long contentFromMs,
+      Long contentToMs) {
+    var base =
+        prepareWithMaterial(
+            projectId,
+            snapshotId,
+            includeTranscript,
+            referenceIds,
+            transcriptMaterialId,
+            instruction);
+    if (contentMaterialId == null || contentMaterialId.isBlank()) {
+      if (contentFromMs != null || contentToMs != null) throw bad("内容时间范围需要先选择独立材料");
+      return base;
+    }
+    var material = contentMaterials.get(projectId, contentMaterialId);
+    var chosen =
+        io.echoinsight.content.ContentEvidenceSelector.select(
+            material, instruction, contentFromMs, contentToMs);
+    var sources = new ArrayList<Source>();
+    if (base.selection() != null) sources.addAll(base.selection().sources());
+    int inherited = base.selection() == null ? 0 : base.selection().textChars();
+    if (inherited + chosen.selectedChars() > 20000) throw bad("本次全部背景合计最多20000字，请减少参考资料或缩小内容范围");
+    for (var segment : chosen.segments())
+      sources.add(
+          new Source(
+              "context-content-"
+                  + (sources.stream().filter(x -> x.role() == Role.CONTENT_TEXT).count() + 1),
+              Role.CONTENT_TEXT,
+              material.summary().id(),
+              material.summary().title(),
+              material.summary().sourceDescription(),
+              segment.id(),
+              segment.startMs(),
+              segment.endMs(),
+              segment.text(),
+              segment.startChar(),
+              segment.endChar()));
+    var binding =
+        new ContentBinding(
+            material.summary().id(),
+            material.summary().title(),
+            material.summary().rawSha256(),
+            material.summary().segmentsSha256(),
+            contentFromMs,
+            contentToMs,
+            chosen.strategy(),
+            chosen.querySha256(),
+            chosen.totalSegments(),
+            chosen.eligibleSegments(),
+            chosen.matchedSegments(),
+            chosen.segments().size(),
+            chosen.selectedChars(),
+            chosen.oversizedMatches(),
+            chosen.segments().stream()
+                .map(io.echoinsight.content.ContentMaterialParser.Segment::id)
+                .toList(),
+            chosen.notes());
+    var old = base.selection();
+    var selection =
+        new Selection(
+            CONTENT_VERSION,
+            snapshotId,
+            old != null && old.transcriptRequested(),
+            old == null ? 0 : old.totalTranscriptSegments(),
+            old == null ? 0 : old.selectedTranscriptSegments(),
+            old != null && old.transcriptTruncated(),
+            old == null ? List.of() : old.references(),
+            List.copyOf(sources),
+            inherited + chosen.selectedChars(),
+            old == null ? null : old.retrieval(),
+            null,
+            binding);
     return new View(ReferenceMaterialStore.hash(encode(selection)), selection);
   }
 

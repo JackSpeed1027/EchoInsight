@@ -30,7 +30,90 @@ public record DiscussionArtifact(
         ContextUsage context,
     @com.fasterxml.jackson.annotation.JsonInclude(
             com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-        Stance stance) {
+        Stance stance,
+    @com.fasterxml.jackson.annotation.JsonInclude(
+            com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        DiscussionDigestPlan.Processing processing) {
+
+  /** 兼容旧18字段产物，缺失processing不回填，旧检查点形状保持不变。 */
+  public DiscussionArtifact(
+      String schemaVersion,
+      String artifactId,
+      String requestId,
+      String jobId,
+      String snapshotId,
+      String instruction,
+      String title,
+      String sourceType,
+      String sourceMode,
+      Scope scope,
+      List<Issue> issues,
+      List<Claim> claims,
+      List<Relation> relations,
+      List<Assessment> assessments,
+      List<Evidence> evidence,
+      List<String> limitations,
+      ContextUsage context,
+      Stance stance) {
+    this(
+        schemaVersion,
+        artifactId,
+        requestId,
+        jobId,
+        snapshotId,
+        instruction,
+        title,
+        sourceType,
+        sourceMode,
+        scope,
+        issues,
+        claims,
+        relations,
+        assessments,
+        evidence,
+        limitations,
+        context,
+        stance,
+        null);
+  }
+
+  /** 完整讨论独立声明归并范围，不把中间摘要数量当逐条立场或观众人数。 */
+  public DiscussionArtifact withProcessing(DiscussionDigestPlan.Processing value) {
+    return withProcessing(value, sourceMode);
+  }
+
+  /** 来源模式来自冻结计划，内存供应商不能被标为真实MODEL。 */
+  public DiscussionArtifact withProcessing(DiscussionDigestPlan.Processing value, String mode) {
+    var notes = new java.util.ArrayList<>(limitations);
+    notes.removeIf(note -> note.startsWith("本次已把当前快照中的全部评论送入讨论分析"));
+    if ("STRUCTURAL_DEMO".equals(mode) || "MOCK".equals(mode)) {
+      notes.add("本次只生成完整处理计划，已执行语义分片为0；下列原文讨论结构不是语义归纳，也没有复用模型响应。");
+    } else {
+      notes.add("所列完整目标包含显式复用的成功分片，复用原文不会再次发送；每次仍重新归并，语义处理不代表每条都有独立结论。");
+      notes.add("普通讨论按唯一目标分片并归并全部成功摘要；父语境可重复输入，但不重复计数。摘要压缩可能遗漏或误读，不是逐条立场统计。");
+      notes.add("完整仅指本快照的输入覆盖；归并只看到中间摘要与明确背景，未重新阅读全文，也没有认证创作者意图或外部事实。");
+    }
+    return new DiscussionArtifact(
+        "discussion-artifact-v7-digest",
+        artifactId,
+        requestId,
+        jobId,
+        snapshotId,
+        instruction,
+        title,
+        sourceType,
+        mode,
+        scope,
+        issues,
+        claims,
+        relations,
+        assessments,
+        evidence,
+        List.copyOf(notes),
+        context,
+        stance,
+        value);
+  }
 
   /** 兼容v4原产物构造，旧正文不包含命题字段。 */
   public DiscussionArtifact(
@@ -289,7 +372,38 @@ public record DiscussionArtifact(
           Long startMs,
       @com.fasterxml.jackson.annotation.JsonInclude(
               com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-          Long endMs) {
+          Long endMs,
+      @com.fasterxml.jackson.annotation.JsonInclude(
+              com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+          Integer startChar,
+      @com.fasterxml.jackson.annotation.JsonInclude(
+              com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+          Integer endChar) {
+    /** 旧评论/时间证据保持原字段，独立文字背景才携带字符定位。 */
+    public Evidence(
+        String id,
+        String sourceCommentId,
+        String parentCommentId,
+        String text,
+        String sourceRole,
+        String materialId,
+        String title,
+        Long startMs,
+        Long endMs) {
+      this(
+          id,
+          sourceCommentId,
+          parentCommentId,
+          text,
+          sourceRole,
+          materialId,
+          title,
+          startMs,
+          endMs,
+          null,
+          null);
+    }
+
     /** 历史证据只有评论字段，序列化时保持旧形状，前端按旧版评论理解。 */
     public Evidence(String id, String sourceCommentId, String parentCommentId, String text) {
       this(id, sourceCommentId, parentCommentId, text, null, null, null, null, null);

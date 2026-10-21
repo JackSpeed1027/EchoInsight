@@ -30,10 +30,44 @@ public final class StanceChunkPlanner {
       String documentHash,
       int targetComments,
       int contextOccurrences,
-      List<Chunk> chunks) {}
+      List<Chunk> chunks,
+      @com.fasterxml.jackson.annotation.JsonInclude(
+              com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+          DiscussionDigestReuse.Plan reuse) {
+    /** v6清单没有复用字段，旧JSON不回填。 */
+    public Manifest(
+        String version,
+        String snapshotId,
+        String documentHash,
+        int targetComments,
+        int contextOccurrences,
+        List<Chunk> chunks) {
+      this(version, snapshotId, documentHash, targetComments, contextOccurrences, chunks, null);
+    }
+
+    /** 分片策略与原图单独验证，复用凭证随后校验，避免改变旧分片算法。 */
+    public Manifest base() {
+      return new Manifest(
+          version, snapshotId, documentHash, targetComments, contextOccurrences, chunks);
+    }
+
+    /** 冻结新协议独立的成功响应凭证。 */
+    public Manifest withReuse(DiscussionDigestReuse.Plan value) {
+      return new Manifest(
+          version, snapshotId, documentHash, targetComments, contextOccurrences, chunks, value);
+    }
+  }
 
   /** 1、校验整个回复图和缺口；2、按稳定广度顺序逐条归属；3、按父闭包/字符边界分片；4、返回无遗漏清单。 单条所需祖先已经超界时明确失败，不能把它伪装为无关或跳过后宣称完整。 */
   public static Manifest plan(String snapshotId, ImportDocument document) {
+    return plan(snapshotId, document, StanceProtocol.MAX_COMMENTS, VERSION);
+  }
+
+  /** 讨论归并只复用唯一目标/祖先闭包算法，按独立版本和目标数规划，不改变旧命题分片。 */
+  public static Manifest plan(
+      String snapshotId, ImportDocument document, int maximumTargets, String version) {
+    if (maximumTargets < 1 || maximumTargets > 120)
+      throw new IllegalArgumentException("Invalid target limit");
     if (!document.contextGaps().isEmpty()) fail("FULL_CONTEXT_MISSING");
     new ThreadContextSelector().select(document);
     Map<String, ImportDocument.Comment> byId = new LinkedHashMap<>();
@@ -62,8 +96,7 @@ public final class StanceChunkPlanner {
     for (String target : ordered) {
       Set<String> candidate = new HashSet<>(inputs);
       addAncestors(candidate, target, byId);
-      if (!targets.isEmpty()
-          && (targets.size() == StanceProtocol.MAX_COMMENTS || !fits(candidate, byId))) {
+      if (!targets.isEmpty() && (targets.size() == maximumTargets || !fits(candidate, byId))) {
         chunks.add(chunk(chunks.size(), targets, inputs, ordered, byId));
         targets = new ArrayList<>();
         inputs = new HashSet<>();
@@ -78,7 +111,7 @@ public final class StanceChunkPlanner {
     int occurrences =
         chunks.stream().mapToInt(c -> c.inputIds().size() - c.targetIds().size()).sum();
     return new Manifest(
-        VERSION,
+        version,
         snapshotId,
         documentHash(document),
         document.comments().size(),

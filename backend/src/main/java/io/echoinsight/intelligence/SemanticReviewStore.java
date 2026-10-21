@@ -146,6 +146,78 @@ public class SemanticReviewStore {
         ids.stream().map(this::get).toList(), total, page, size, (total + size - 1) / size);
   }
 
+  /** 只统计复核覆盖和当前意见分歧，不计算语义准确率；本机署名不是独立身份。 */
+  public record Summary(
+      int totalTargets,
+      int reviewedTargets,
+      int unreviewedTargets,
+      int supportedTargets,
+      int unsupportedTargets,
+      int uncertainTargets,
+      int conflictingTargets,
+      int reviewerNames,
+      long historyRecords,
+      boolean complete,
+      boolean independentQualityProven) {}
+
+  /** 同一署名对同一目标取最新意见，旧记录保留；最多读取5000条并显式声明是否完整。 */
+  @Transactional(readOnly = true)
+  public Summary summary(String projectId, String requestId) {
+    var artifact = requests.artifact(projectId, requestId);
+    int total =
+        artifact.path("issues").size()
+            + artifact.path("claims").size()
+            + artifact.path("relations").size()
+            + artifact.path("assessments").size();
+    long records =
+        db.queryForObject(
+            "SELECT COUNT(*) FROM discussion_semantic_review WHERE project_id=? AND request_id=?",
+            Long.class,
+            projectId,
+            requestId);
+    var rows =
+        db.queryForList(
+            "SELECT review_json FROM discussion_semantic_review WHERE project_id=? AND request_id=?"
+                + " ORDER BY created_at DESC,id DESC LIMIT 5000",
+            String.class,
+            projectId,
+            requestId);
+    Map<String, Set<String>> verdicts = new HashMap<>();
+    Set<String> latest = new HashSet<>(), names = new HashSet<>();
+    for (String body : rows) {
+      Input input;
+      try {
+        input = json.readValue(body, Input.class);
+      } catch (Exception e) {
+        throw new IllegalStateException("Invalid stored review", e);
+      }
+      String target = input.targetKind() + ":" + input.targetId();
+      if (latest.add(input.reviewer() + "\n" + target)) {
+        verdicts.computeIfAbsent(target, k -> new HashSet<>()).add(input.verdict());
+        names.add(input.reviewer());
+      }
+    }
+    int supported = 0, unsupported = 0, uncertain = 0, conflicts = 0;
+    for (var opinions : verdicts.values()) {
+      if (opinions.size() > 1) conflicts++;
+      else if (opinions.contains("SUPPORTED")) supported++;
+      else if (opinions.contains("UNSUPPORTED")) unsupported++;
+      else uncertain++;
+    }
+    return new Summary(
+        total,
+        verdicts.size(),
+        Math.max(0, total - verdicts.size()),
+        supported,
+        unsupported,
+        uncertain,
+        conflicts,
+        names.size(),
+        records,
+        records <= 5000,
+        false);
+  }
+
   /** 内部身份已由调用者验证，不作为可直接访问的跨项目接口。 */
   private Review get(String id) {
     return db.queryForObject(

@@ -222,28 +222,127 @@ public class AnalysisRequestStore {
       String analysisScope,
       boolean confirmFullScope,
       String transcriptMaterialId) {
+    return createWithMaterials(
+        projectId,
+        key,
+        snapshotId,
+        instruction,
+        includeTranscript,
+        referenceIds,
+        allowPartialInput,
+        proposition,
+        analysisScope,
+        confirmFullScope,
+        transcriptMaterialId,
+        null,
+        null,
+        null);
+  }
+
+  /** 独立内容关联在原项目锁内冻结；模型计划/语义角色与幂等一并确定，不从页面接收原文或模型。 */
+  @Transactional
+  public Created createWithMaterials(
+      String projectId,
+      String key,
+      String snapshotId,
+      String instruction,
+      boolean includeTranscript,
+      List<String> referenceIds,
+      boolean allowPartialInput,
+      String proposition,
+      String analysisScope,
+      boolean confirmFullScope,
+      String transcriptMaterialId,
+      String contentMaterialId,
+      Long contentFromMs,
+      Long contentToMs) {
+    return createWithMaterials(
+        projectId,
+        key,
+        snapshotId,
+        instruction,
+        includeTranscript,
+        referenceIds,
+        allowPartialInput,
+        proposition,
+        analysisScope,
+        confirmFullScope,
+        transcriptMaterialId,
+        contentMaterialId,
+        contentFromMs,
+        contentToMs,
+        null);
+  }
+
+  /** 显式复用基准参与原请求幂等；不选基准时全部新分析，旧调用形状继续兼容。 */
+  @Transactional
+  public Created createWithMaterials(
+      String projectId,
+      String key,
+      String snapshotId,
+      String instruction,
+      boolean includeTranscript,
+      List<String> referenceIds,
+      boolean allowPartialInput,
+      String proposition,
+      String analysisScope,
+      boolean confirmFullScope,
+      String transcriptMaterialId,
+      String contentMaterialId,
+      Long contentFromMs,
+      Long contentToMs,
+      String baselineRequestId) {
+    if (baselineRequestId != null && baselineRequestId.isBlank()) baselineRequestId = null;
     var resolution = AnalysisSpecification.resolve(instruction, proposition);
+    // 普通旧客户端省略范围仍保留单次有界语义；新页面明确发送FULL并核对全部费用。
     boolean full =
-        resolution.stanceRequested() && AnalysisScopeStore.full(instruction, analysisScope);
+        resolution.stanceRequested()
+            ? AnalysisScopeStore.full(instruction, analysisScope)
+            : "FULL".equals(analysisScope);
     if (analysisScope != null) AnalysisScopeStore.full(instruction, analysisScope);
-    if ("FULL".equals(analysisScope) && !resolution.stanceRequested())
-      throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "完整分片当前仅支持明确命题的逐评论分析");
     if (resolution.needsProposition())
       throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "请先明确需要判断支持或反对的命题");
+    if (baselineRequestId != null && (!full || resolution.stanceRequested()))
+      throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "讨论基准复用仅支持普通完整讨论");
+    boolean contentSelected = contentMaterialId != null && !contentMaterialId.isBlank();
+    if (contentSelected && resolution.stanceRequested())
+      throw new ResponseStatusException(
+          HttpStatus.UNPROCESSABLE_ENTITY, "独立内容对照当前用于讨论梳理；逐条命题分析请使用作品字幕或参考文本背景");
+    if (!contentSelected && (contentFromMs != null || contentToMs != null))
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "内容时间范围需要先选择独立材料");
+    AnalysisContextStore.View prepared = null;
+    if (contentSelected) {
+      projects.lock(projectId);
+      snapshotId = selectSnapshot(projectId, snapshotId);
+      prepared =
+          contexts.prepareAll(
+              projectId,
+              snapshotId,
+              includeTranscript,
+              referenceIds,
+              transcriptMaterialId,
+              instruction,
+              contentMaterialId,
+              contentFromMs,
+              contentToMs);
+    }
     boolean hasContext =
-        includeTranscript
+        contentSelected
+            || includeTranscript
             || (transcriptMaterialId != null && !transcriptMaterialId.isBlank())
             || (referenceIds != null && !referenceIds.isEmpty());
-    return createInternal(
+    return createInternalWithBaseline(
         projectId,
         key,
         snapshotId,
         instruction,
         full
-            ? plans.discussionFull()
+            ? resolution.stanceRequested() ? plans.discussionFull() : plans.discussionDigest()
             : resolution.specification() != null
                 ? plans.discussionWithProposition()
-                : hasContext ? plans.discussionWithContext() : plans.discussion(),
+                : contentSelected
+                    ? plans.discussionWithContent()
+                    : hasContext ? plans.discussionWithContext() : plans.discussion(),
         includeTranscript,
         referenceIds,
         allowPartialInput,
@@ -251,7 +350,8 @@ public class AnalysisRequestStore {
         full,
         confirmFullScope,
         transcriptMaterialId,
-        null);
+        prepared,
+        baselineRequestId);
   }
 
   /** 追问沿用原快照及冻结背景，重新执行原讨论任务；不会把上一轮结论当新事实或复用旧费用。 */
@@ -272,7 +372,10 @@ public class AnalysisRequestStore {
             key,
             prepared.snapshotId(),
             question,
-            plans.discussionWithContext(),
+            prepared.context().selection() != null
+                    && prepared.context().selection().content() != null
+                ? plans.discussionWithContent()
+                : plans.discussionWithContext(),
             false,
             List.of(),
             allowPartialInput,
@@ -300,6 +403,39 @@ public class AnalysisRequestStore {
       boolean confirmFullScope,
       String transcriptMaterialId,
       AnalysisContextStore.View preparedContext) {
+    return createInternalWithBaseline(
+        projectId,
+        key,
+        snapshotId,
+        instruction,
+        fixedPlan,
+        includeTranscript,
+        referenceIds,
+        allowPartialInput,
+        specification,
+        full,
+        confirmFullScope,
+        transcriptMaterialId,
+        preparedContext,
+        null);
+  }
+
+  /** 复用清单和原任务同事务保存，重发只核对既有身份，不重验新配置或重新派工。 */
+  private Created createInternalWithBaseline(
+      String projectId,
+      String key,
+      String snapshotId,
+      String instruction,
+      io.echoinsight.model.ModelContract.Plan fixedPlan,
+      boolean includeTranscript,
+      List<String> referenceIds,
+      boolean allowPartialInput,
+      AnalysisSpecification specification,
+      boolean full,
+      boolean confirmFullScope,
+      String transcriptMaterialId,
+      AnalysisContextStore.View preparedContext,
+      String baselineRequestId) {
     if (key == null || !key.matches("[A-Za-z0-9._:-]{1,128}")) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "需要有效的分析请求键");
     }
@@ -360,10 +496,30 @@ public class AnalysisRequestStore {
       throw new ResponseStatusException(HttpStatus.CONFLICT, "该请求键已经用于其他命题");
     if (!candidate.equals(stored.id()) && full != (scopes.get(projectId, stored.id()) != null))
       throw new ResponseStatusException(HttpStatus.CONFLICT, "该请求键已经用于其他分析范围");
+    if (!candidate.equals(stored.id())) {
+      var frozenScope = scopes.get(projectId, stored.id());
+      String oldBaseline =
+          frozenScope == null || frozenScope.reuse() == null
+              ? null
+              : frozenScope.reuse().baselineRequestId();
+      if (!java.util.Objects.equals(oldBaseline, baselineRequestId))
+        throw new ResponseStatusException(HttpStatus.CONFLICT, "该请求键已经用于其他讨论复用基准");
+    }
     if (candidate.equals(stored.id())) {
       if (full)
         scopes.save(
-            stored.id(), scopes.require(projectId, selectedSnapshot, fixedPlan, confirmFullScope));
+            stored.id(),
+            DiscussionDigestPlan.enabled(fixedPlan)
+                ? scopes.requireFull(
+                    projectId,
+                    selectedSnapshot,
+                    fixedPlan,
+                    confirmFullScope,
+                    cleanInstruction,
+                    spec.includeAssessment(),
+                    context,
+                    baselineRequestId)
+                : scopes.require(projectId, selectedSnapshot, fixedPlan, confirmFullScope));
       else
         preflight.requireConsent(
             projectId, selectedSnapshot, fixedPlan, allowPartialInput, specification != null);
@@ -431,20 +587,42 @@ public class AnalysisRequestStore {
   /** 项目智能分析页按新到旧读取请求，查询不触发执行。 */
   @Transactional(readOnly = true)
   public Page<RequestRow> list(String projectId, int page, int size) {
+    return list(projectId, page, size, null);
+  }
+
+  /** 基准候选限定同项目/作品/执行范围，稳定分页只含成功v7语义报告，最终资格由预检再次核对。 */
+  @Transactional(readOnly = true)
+  public Page<RequestRow> list(String projectId, int page, int size, String baselineForSnapshotId) {
     validatePage(page, size);
     projects.get(projectId);
-    long total =
-        db.queryForObject(
-            "SELECT COUNT(*) FROM analysis_request WHERE project_id=?", Long.class, projectId);
+    var args = new java.util.ArrayList<Object>(List.of(projectId));
+    String from = " FROM analysis_request ar LEFT JOIN analysis_artifact aa ON aa.request_id=ar.id";
+    String where = " WHERE ar.project_id=?";
+    if (baselineForSnapshotId != null) {
+      var target = projects.snapshot(projectId, baselineForSnapshotId);
+      from +=
+          " JOIN analysis_job j ON j.id=ar.job_id JOIN data_snapshot ds ON ds.id=ar.snapshot_id";
+      where +=
+          " AND ds.content_id=? AND ar.status='SUCCESS' AND j.status='SUCCESS' AND"
+              + " j.execution_scope=? AND j.prompt_version=? AND"
+              + " JSON_UNQUOTE(JSON_EXTRACT(j.execution_plan_json,'$.executionMode')) IN"
+              + " ('MODEL','LOCAL_STUB')";
+      args.add(target.contentId());
+      args.add(scopes.executionScope());
+      args.add(DiscussionDigestPlan.PROMPT);
+    }
+    long total = db.queryForObject("SELECT COUNT(*)" + from + where, Long.class, args.toArray());
+    args.add(size);
+    args.add((page - 1) * size);
     var items =
         db.query(
-            """
-            SELECT ar.*,aa.id artifact_id,
-             DATE_FORMAT(ar.created_at,'%Y-%m-%d %H:%i:%s') created_time
-            FROM analysis_request ar LEFT JOIN analysis_artifact aa ON aa.request_id=ar.id
-            WHERE ar.project_id=? ORDER BY ar.created_at DESC,ar.id DESC LIMIT ? OFFSET ?
-            """,
-            this::row, projectId, size, (page - 1) * size);
+            "SELECT ar.*,aa.id artifact_id,DATE_FORMAT(ar.created_at,'%Y-%m-%d %H:%i:%s')"
+                + " created_time"
+                + from
+                + where
+                + " ORDER BY ar.created_at DESC,ar.id DESC LIMIT ? OFFSET ?",
+            this::row,
+            args.toArray());
     return new Page<>(List.copyOf(items), total, page, size, (total + size - 1) / size);
   }
 

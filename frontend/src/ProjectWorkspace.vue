@@ -111,6 +111,13 @@ function imported() {
   page.value = 1
   emit('tab', 'materials')
 }
+/** 选择补充页面后收起菜单，保留原浏览器路由并避免菜单挡住报告。 */
+function secondaryTab(next: string, event: Event) {
+  const target = event.currentTarget as HTMLElement
+  const menu = target.closest('details')
+  if (menu) menu.open = false
+  emit('tab', next)
+}
 /** 页码只改变当前项目读取范围，不改变项目成员或历史版本。 */
 function turn(next: number) {
   page.value = next
@@ -154,7 +161,7 @@ onUnmounted(() => {
       >
       <span
         ><b>{{ project.jobCount }}</b> 次分析</span
-      ><span class="summary-hint">旧版本与报告会保留</span>
+      ><span class="summary-hint">资料按版本保存</span>
       <span
         ><b>{{ project.contentMaterialCount }}</b> 份内容材料</span
       >
@@ -162,23 +169,58 @@ onUnmounted(() => {
     <p v-if="summaryError" role="alert" class="error">
       {{ summaryError }} <button @click="refreshSummary">刷新项目数量</button>
     </p>
-    <nav class="project-tabs" aria-label="项目页面">
-      <button :class="{ selected: tab === 'sets' }" @click="emit('tab', 'sets')">资料集合</button>
-      <button :class="{ selected: tab === 'materials' }" @click="emit('tab', 'materials')">
-        资料与作品
-      </button>
-      <button :class="{ selected: tab === 'insight' }" @click="emit('tab', 'insight')">
-        智能分析
-      </button>
-      <button :class="{ selected: tab === 'content' }" @click="emit('tab', 'content')">
-        内容材料
-      </button>
-      <button :class="{ selected: tab === 'tasks' }" @click="emit('tab', 'tasks')">任务中心</button>
-      <button :class="{ selected: tab === 'history' }" @click="emit('tab', 'history')">
-        历史反馈记录
-      </button>
-      <button :class="{ selected: tab === 'goal' }" @click="emit('tab', 'goal')">项目目标</button>
-    </nav>
+    <!-- 主导航只保留日常路径；集合与早期反馈报告按需展开，旧URL仍可直接访问。 -->
+    <div class="project-navigation">
+      <nav class="project-tabs" aria-label="项目页面">
+        <button
+          :class="{ selected: tab === 'materials' || tab === 'import' }"
+          :aria-current="tab === 'materials' || tab === 'import' ? 'page' : undefined"
+          @click="emit('tab', 'materials')"
+        >
+          资料与作品
+        </button>
+        <button
+          :class="{ selected: tab === 'insight' }"
+          :aria-current="tab === 'insight' ? 'page' : undefined"
+          @click="emit('tab', 'insight')"
+        >
+          智能分析
+        </button>
+        <button
+          :class="{ selected: tab === 'content' }"
+          :aria-current="tab === 'content' ? 'page' : undefined"
+          @click="emit('tab', 'content')"
+        >
+          文本与字幕
+        </button>
+        <button
+          :class="{ selected: tab === 'tasks' }"
+          :aria-current="tab === 'tasks' ? 'page' : undefined"
+          @click="emit('tab', 'tasks')"
+        >
+          任务中心
+        </button>
+      </nav>
+      <details class="project-more">
+        <summary>
+          更多 <span v-if="['sets', 'history', 'goal', 'analysis'].includes(tab)">· 当前</span>
+        </summary>
+        <nav aria-label="项目补充页面">
+          <button :class="{ selected: tab === 'sets' }" @click="secondaryTab('sets', $event)">
+            资料集合
+          </button>
+          <button
+            :class="{ selected: tab === 'history' || tab === 'analysis' }"
+            @click="secondaryTab('history', $event)"
+          >
+            早期反馈报告
+          </button>
+          <button :class="{ selected: tab === 'goal' }" @click="secondaryTab('goal', $event)">
+            项目目标
+          </button>
+        </nav>
+      </details>
+    </div>
     <p v-if="loading" role="status">正在读取项目…</p>
     <p v-if="error" role="alert" class="error">{{ error }} <button @click="load">重试</button></p>
     <template v-if="!loading && !error && project">
@@ -190,7 +232,7 @@ onUnmounted(() => {
         <div v-if="!materials?.total" class="empty-state">
           <div class="empty-symbol">＋</div>
           <h2>先为项目添加一份资料</h2>
-          <p>导入平台评论文件或本地标准 JSON，再从资料卡片开始分析。</p>
+          <p>添加 B站链接或评论导出文件，再围绕问题分析；没有评论也可以上传文本与字幕。</p>
           <button class="primary" @click="emit('tab', 'import')">添加第一份资料</button>
           <button class="quiet" @click="emit('tab', 'content')">没有评论，上传文本或字幕</button>
         </div>
@@ -198,7 +240,10 @@ onUnmounted(() => {
           <article class="material-card" v-for="item in materials.items" :key="item.snapshotId">
             <div class="material-top">
               <span class="source-badge">{{ sourceName(item.sourceType) }}</span>
-              <span class="state-badge" :class="item.latestJobStatus?.toLowerCase()"
+              <span
+                class="state-badge"
+                v-if="item.latestJobStatus"
+                :class="item.latestJobStatus?.toLowerCase()"
                 >历史反馈：{{ jobStatus(item.latestJobStatus) }}</span
               >
             </div>

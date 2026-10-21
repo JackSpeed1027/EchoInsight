@@ -1,6 +1,6 @@
 <!-- 文件职责：无评论文本/字幕的版本库、自然语言提问、范围确认及证据回看；复用原任务控制。 -->
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { readApi, type Page } from './projectApi'
 import { budgetText, taskState } from './taskCenter'
 import {
@@ -19,6 +19,8 @@ import TaskControlPanel from './TaskControlPanel.vue'
 import ExecutionDetails from './ExecutionDetails.vue'
 const props = defineProps<{ projectId: string; initialJobId?: string }>()
 const emit = defineEmits<{ updated: [] }>()
+const uploadPanel = ref<HTMLDetailsElement | null>(null)
+const questionPanel = ref<HTMLElement | null>(null)
 const materials = ref<Page<ContentMaterial> | null>(null),
   materialPage = ref(1)
 const selected = ref<ContentMaterial | null>(null),
@@ -117,6 +119,12 @@ function revise(item: ContentMaterial) {
   title.value = item.title
   source.value = item.sourceDescription
   notice.value = `下一次上传将作为“${item.title}”的修订，旧版本保留。`
+  // 展开真实上传表单并定位，避免卡片操作后表单仍隐藏在页面上方。
+  if (uploadPanel.value) {
+    uploadPanel.value.open = true
+    uploadPanel.value.scrollIntoView({ block: 'start' })
+    uploadPanel.value.querySelector('input')?.focus({ preventScroll: true })
+  }
 }
 /** 1、验证文件；2、复用相同上传重发键；3、追加版本；4、刷新列表并选择新材料，绝不自动分析。 */
 async function upload() {
@@ -178,6 +186,12 @@ async function choose(item: ContentMaterial) {
   rawPage.value = 1
   resetBaseline()
   invalidate()
+  // 页面先呈现明确的提问区域；只读请求在其后加载，等待时也能编辑问题。
+  await nextTick()
+  if (selected.value?.id === item.id) {
+    questionPanel.value?.scrollIntoView({ block: 'start' })
+    questionPanel.value?.querySelector('textarea')?.focus({ preventScroll: true })
+  }
   await Promise.all([loadRaw(), loadCandidates()])
 }
 /** 只读分页/子串查找原文，原文直接转义展示；不能将它当语义检索结果。 */
@@ -420,17 +434,17 @@ onUnmounted(() => {
   <section class="content-workspace">
     <div class="section-toolbar">
       <div>
-        <h2>内容材料与提问</h2>
+        <h2>文本与字幕</h2>
         <p>没有评论也可以使用。上传文本或字幕，围绕原文提问，保留版本与证据。</p>
       </div>
     </div>
     <p class="scope-copy">
-      目前支持UTF8 TXT、MD、SRT、VTT；没有视频画面、音频或自动转写。资料来源说明是用户声明。
+      支持 TXT、MD、SRT、VTT。上传已有原文，不自动转写音视频；字幕保留时间位置。
     </p>
     <p v-if="loading" role="status">正在读取内容材料…</p>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <p v-if="notice" role="status">{{ notice }}</p>
-    <details class="surface content-upload" :open="!materials?.total">
+    <details class="surface content-upload" ref="uploadPanel" :open="!materials?.total">
       <summary>上传内容材料或追加修订</summary>
       <form @submit.prevent="upload">
         <label>材料标题<input v-model="title" maxlength="120" required /></label>
@@ -458,6 +472,13 @@ onUnmounted(() => {
         </button>
       </form>
     </details>
+    <div
+      v-if="!loading &amp;&amp; materials &amp;&amp; !materials.total"
+      class="content-empty-hint"
+      role="status"
+    >
+      还没有内容材料。先上传一份文本或字幕，就能独立提问，也能在评论分析中作为对照背景。
+    </div>
     <div class="material-grid">
       <article v-for="item in materials?.items" :key="item.id" class="material-card">
         <span class="source-badge">{{ item.format }} · 版本深度{{ item.versionDepth }}</span>
@@ -481,7 +502,7 @@ onUnmounted(() => {
         下一材料页
       </button>
     </div>
-    <section v-if="selected" class="surface content-question">
+    <section v-if="selected" ref="questionPanel" class="surface content-question">
       <h3>向“{{ selected.title }}”提问</h3>
       <p>
         {{ selected.format }} ·
@@ -503,7 +524,8 @@ onUnmounted(() => {
           <option value="PREFIX">仅分析前部（有限预览）</option>
         </select>
       </label>
-      <div v-if="coverageMode === 'FULL'" class="content-reuse">
+      <details v-if="coverageMode === 'FULL'" class="content-reuse" :open="!!baselineId">
+        <summary>沿用旧版本分析（可选）</summary>
         <label
           >分析方式
           <select v-model="baselineId" @change="selectBaseline">
@@ -545,7 +567,7 @@ onUnmounted(() => {
         <button type="button" class="quiet" @click="loadCandidates(candidatePage)">
           刷新可选基准
         </button>
-      </div>
+      </details>
       <div v-if="timed" class="content-range">
         <label
           >字幕起点（秒，可空）<input
@@ -580,17 +602,17 @@ onUnmounted(() => {
             preview.input.selection.omittedSegments
           }}段未选入。
         </p>
-        <p>
-          {{
-            preview.sourceMode === 'MOCK' ? '免费结构演示，不生成语义结论' : '将执行模型内容分析'
-          }}
-          · 本任务计划{{ preview.plannedCalls }}次调用，全部调用费用上界{{
+        <p v-if="preview.sourceMode === 'MOCK'">
+          当前是免费结构演示：只核对范围与处理计划，不调用模型、不产生模型费用、不生成语义结论。
+        </p>
+        <p v-else>
+          将执行模型内容分析 · 本次计划{{ preview.plannedCalls }}次新调用，全部调用费用估算上界{{
             budgetText(preview.reservationUnits, preview.budgetUnit)
-          }}
+          }}。
           <span v-if="preview.input.fullPlan"
-            >（复用{{ contentReuseCount(preview.input) }}片；新分片{{
+            >复用{{ contentReuseCount(preview.input) }}片；新分片{{
               preview.input.fullPlan.chunks.length - contentReuseCount(preview.input)
-            }}次＋重新汇总1次；免费模式不出站）</span
+            }}次，另重新汇总1次。</span
           >
         </p>
         <p v-if="!preview.budgetSufficient" class="error">预算不足，不能提交。</p>

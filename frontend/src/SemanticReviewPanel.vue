@@ -1,6 +1,6 @@
 <!-- 文件职责：为已发布讨论产物提供可选核验记录，原始分析不会被人工意见覆盖。 -->
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
 import { readApi, evidenceSource, type Page } from './projectApi'
 const props = defineProps<{
   projectId: string
@@ -41,6 +41,23 @@ const busy = ref(false)
 const error = ref('')
 let alive = true
 let submission: { content: string; key: string } | undefined
+type ReviewSummary = {
+  totalTargets: number
+  reviewedTargets: number
+  unreviewedTargets: number
+  supportedTargets: number
+  unsupportedTargets: number
+  uncertainTargets: number
+  conflictingTargets: number
+  historyRecords: number
+  complete: boolean
+  independentQualityProven: boolean
+}
+const summary = ref<ReviewSummary | null>(null)
+/** 仅展开时读取复核历史和覆盖，不把它当独立准确率。 */
+function opened(event: Event) {
+  if ((event.target as HTMLDetailsElement).open) void load()
+}
 const options = computed(() => [
   ...props.artifact.issues.map((i) => ({ value: 'ISSUE:' + i.id, label: '议题：' + i.question })),
   ...props.artifact.claims.map((i) => ({ value: 'CLAIM:' + i.id, label: '观点：' + i.statement })),
@@ -56,12 +73,18 @@ const options = computed(() => [
 /** 分页读取只追加的核验历史；组件以requestId为key重新挂载以隔离上下文。 */
 async function load() {
   try {
-    const result = await readApi<Page<Review>>(
-      `/api/v1/projects/${props.projectId}/analysis-requests/${props.requestId}/semantic-reviews?page=${page.value}&size=10`,
-    )
+    const [result, counts] = await Promise.all([
+      readApi<Page<Review>>(
+        `/api/v1/projects/${props.projectId}/analysis-requests/${props.requestId}/semantic-reviews?page=${page.value}&size=10`,
+      ),
+      readApi<ReviewSummary>(
+        `/api/v1/projects/${props.projectId}/analysis-requests/${props.requestId}/semantic-reviews/summary`,
+      ),
+    ])
     if (alive) {
       history.value = result.items
       pages.value = result.totalPages
+      summary.value = counts
     }
   } catch (caught) {
     if (alive) error.value = caught instanceof Error ? caught.message : '核验历史读取失败。'
@@ -119,18 +142,32 @@ function name(value: string) {
     )[value] || value
   )
 }
-onMounted(load)
+
 onUnmounted(() => {
   alive = false
 })
 </script>
 <template>
-  <details class="surface semantic-review">
+  <details class="surface semantic-review" @toggle="opened">
     <summary>核对结论与原文（可选）</summary>
     <p class="small">
       这里保存你的阅读意见，原分析不变。署名是本机记录，不等于独立评测或已认证评审人；不影响正常使用。
     </p>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
+    <div v-if="summary" class="review-summary">
+      <p>
+        已核对{{ summary.reviewedTargets }}/{{ summary.totalTargets }}项目标；尚未核对{{
+          summary.unreviewedTargets
+        }}项，存在分歧{{ summary.conflictingTargets }}项。
+      </p>
+      <p class="small">
+        有依据{{ summary.supportedTargets }}项 · 依据不足{{ summary.unsupportedTargets }}项 ·
+        待判断{{
+          summary.uncertainTargets
+        }}项。同一署名对同一目标只取最新意见，历史保留；不是模型准确率。
+      </p>
+      <p v-if="!summary.complete" class="error">当前统计仅纳入最新5000条意见，覆盖不完整。</p>
+    </div>
     <form @submit.prevent="submit">
       <label class="field"
         >要核对的内容<select v-model="target" required>

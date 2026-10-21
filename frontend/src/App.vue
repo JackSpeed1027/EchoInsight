@@ -153,6 +153,7 @@ onUnmounted(() => window.removeEventListener('popstate', pop))
 </script>
 
 <template>
+  <a class="skip-link" href="#main-content">跳到页面内容</a>
   <div class="app-shell">
     <aside class="sidebar">
       <a class="brand" href="/" @click.prevent="navigate({})"
@@ -176,18 +177,18 @@ onUnmounted(() => window.removeEventListener('popstate', pop))
           href="?view=archive"
           :class="{ active: route.view === 'archive' }"
           @click.prevent="navigate({ view: 'archive' })"
-          ><span>▤</span> 历史与高级</a
+          ><span>▤</span> 历史记录</a
         >
         <a
           href="?view=guide"
           :class="{ active: route.view === 'guide' }"
           @click.prevent="navigate({ view: 'guide' })"
-          ><span>?</span> 模型与说明</a
+          ><span>?</span> 使用与模型</a
         >
       </nav>
       <div class="sidebar-bottom">
         <strong>资料有版本，结论有依据。</strong>
-        <p>从一个项目开始，逐步整理反馈。</p>
+        <p>围绕一个问题，整理资料与证据。</p>
         <span>EchoInsight · 本地工作台</span>
       </div>
     </aside>
@@ -197,9 +198,9 @@ onUnmounted(() => window.removeEventListener('popstate', pop))
           工作台 <span>/</span>
           {{
             route.view === 'archive'
-              ? '历史与高级'
+              ? '历史记录'
               : route.view === 'guide'
-                ? '模型与说明'
+                ? '使用与模型'
                 : route.view === 'report'
                   ? '分析详情'
                   : route.view === 'project'
@@ -207,16 +208,20 @@ onUnmounted(() => window.removeEventListener('popstate', pop))
                     : '我的项目'
           }}
         </div>
-        <div class="header-status">
+        <div class="header-status" aria-live="polite">
           <span class="mode-badge">{{
-            mode === 'MOCK' ? '免费演示' : mode === 'MODEL' ? '模型已启用' : '分析模式待确认'
+            mode === 'MOCK' ? '结构演示' : mode === 'MODEL' ? '模型已启用' : '模式待确认'
           }}</span>
           <button class="connection-mini" @click="check" :disabled="checking">
             <i :class="{ online: connected }"></i>{{ connected ? '服务已连接' : '检查连接' }}
           </button>
         </div>
       </header>
-      <div class="page-content">
+      <div id="main-content" class="page-content" tabindex="-1">
+        <div v-if="!connected &amp;&amp; !checking" class="connection-banner" role="status">
+          <span>暂未连接后端，页面数据可能尚未更新。</span>
+          <button class="quiet" @click="check">重新连接</button>
+        </div>
         <ProjectHome v-if="route.view === 'projects'" @open="openProject" />
         <ProjectWorkspace
           v-else-if="route.view === 'project' && route.project"
@@ -244,7 +249,7 @@ onUnmounted(() => window.removeEventListener('popstate', pop))
           <div class="page-heading">
             <div>
               <p class="eyebrow">ARCHIVE</p>
-              <h1>历史与高级</h1>
+              <h1>历史记录</h1>
               <p>早期全局记录和独立导入保留在这里，日常分析建议从项目进入。</p>
             </div>
           </div>
@@ -317,8 +322,9 @@ onUnmounted(() => window.removeEventListener('popstate', pop))
               自然语言讨论分析已经可用：系统会绑定项目资料、整理议题和观点、比较回应关系，并让结论回到原评论依据。未启用模型时只做结构演示，不会伪装成语义结论。
             </p>
             <p>
-              当前稳定入口是 B站/小红书导出 JSON 与标准 JSON。URL 在线采集、视频/PDF/Word
-              等资料和自动增量仍在后续开发中。
+              当前稳定入口是 B站/小红书导出 JSON 与标准 JSON。B站 URL
+              采集已有入口，真实完整遍历仍需受控验证。TXT / MD / SRT / VTT
+              可独立分析，修订版可显式复用相同片段；音视频转写、画面理解和 PDF / Word 尚未接入。
             </p>
           </div>
           <section class="surface model-settings" aria-labelledby="model-settings-title">

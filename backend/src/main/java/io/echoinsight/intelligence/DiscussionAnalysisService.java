@@ -89,6 +89,43 @@ public class DiscussionAnalysisService {
       AnalysisContextStore.View context,
       AnalysisSpecification specification,
       StanceChunkPlanner.Manifest scope) {
+    if (DiscussionDigestPlan.enabled(plan)) {
+      if (scope == null || !scope.base().equals(DiscussionDigestPlan.plan(job.snapshotId(), input)))
+        throw new ModelContract.Failure("FULL_SCOPE_CHANGED");
+      DiscussionDigestReuse.verify(
+          input, scope, context, plan, request.instruction(), request.includeAssessment());
+      var reductions = DiscussionDigestPlan.reductions(scope.chunks().size());
+      if ("MOCK".equals(plan.reportMode())) {
+        var demo = structural.analyze(job, request, input, artifactId);
+        if (context.selection() != null) demo = demo.withContext(usage(context, false));
+        return demo.withProcessing(
+            new DiscussionDigestPlan.Processing(
+                DiscussionDigestPlan.VERSION,
+                scope.chunks().size(),
+                reductions.size(),
+                0,
+                0,
+                scope.targetComments(),
+                scope.contextOccurrences(),
+                List.of()));
+      }
+      var result =
+          new FullDiscussionAnalyzer(models)
+              .analyze(job, token, plan, request, input, context, scope, leaseCheck);
+      var named = withCommentNamespace(input);
+      var selection =
+          new ThreadContextSelector.Selection(
+              named.comments(),
+              named.comments().size(),
+              (int) named.comments().stream().filter(c -> c.parentId() == null).count(),
+              named.comments().stream().mapToInt(c -> c.text().length()).sum(),
+              false);
+      var report = artifact(job, request, named, artifactId, selection, result.response(), context);
+      if (context.selection() != null)
+        report = report.withContext(usage(context, !context.selection().sources().isEmpty()));
+      return completeEvidence(report, named, context)
+          .withProcessing(result.processing(), plan.reportMode());
+    }
     if (scope != null)
       return full.analyze(
           job, token, plan, request, input, artifactId, leaseCheck, context, specification, scope);
@@ -147,13 +184,17 @@ public class DiscussionAnalysisService {
                                 source.sourceDescription(),
                                 source.startMs(),
                                 source.endMs(),
-                                source.text()))
+                                source.text(),
+                                source.startChar(),
+                                source.endChar()))
                     .toList()
                 : stance ? List.of() : null,
             stance
                 ? io.echoinsight.model.StanceProtocol.VERSION
                 : contextual
-                    ? io.echoinsight.model.springai.DiscussionPrompt.CONTEXT_VERSION
+                    ? context.selection().content() != null
+                        ? io.echoinsight.model.springai.DiscussionPrompt.CONTENT_VERSION
+                        : io.echoinsight.model.springai.DiscussionPrompt.CONTEXT_VERSION
                     : null,
             specification);
     var response = models.discuss(job.id(), token, plan, modelRequest);
@@ -170,6 +211,58 @@ public class DiscussionAnalysisService {
                   io.echoinsight.model.StanceProtocol.summarize(response.decisions()),
                   response.decisions()));
     return result;
+  }
+
+  /** 完整普通讨论的中间节点可回看所有当前原文及父关系，不制造新的评论来源。 */
+  private DiscussionArtifact completeEvidence(
+      DiscussionArtifact report, ImportDocument input, AnalysisContextStore.View context) {
+    var evidence = new ArrayList<DiscussionArtifact.Evidence>();
+    for (var c : input.comments())
+      evidence.add(
+          new DiscussionArtifact.Evidence(
+              c.id(),
+              c.sourceCommentId(),
+              c.parentId(),
+              c.text(),
+              "COMMENT",
+              report.snapshotId(),
+              input.content().title(),
+              null,
+              null));
+    if (context.selection() != null)
+      for (var c : context.selection().sources())
+        evidence.add(
+            new DiscussionArtifact.Evidence(
+                c.id(),
+                null,
+                null,
+                c.text(),
+                c.role().name(),
+                c.materialId(),
+                c.title(),
+                c.startMs(),
+                c.endMs(),
+                c.startChar(),
+                c.endChar()));
+    return new DiscussionArtifact(
+        report.schemaVersion(),
+        report.artifactId(),
+        report.requestId(),
+        report.jobId(),
+        report.snapshotId(),
+        report.instruction(),
+        report.title(),
+        report.sourceType(),
+        report.sourceMode(),
+        report.scope(),
+        report.issues(),
+        report.claims(),
+        report.relations(),
+        report.assessments(),
+        List.copyOf(evidence),
+        report.limitations(),
+        report.context(),
+        report.stance());
   }
 
   /** 把模型 DTO 映射成长期产物 DTO；证据原文始终从当前不可变快照读取。 */
@@ -356,7 +449,9 @@ public class DiscussionAnalysisService {
                       source.materialId(),
                       source.title(),
                       source.startMs(),
-                      source.endMs());
+                      source.endMs(),
+                      source.startChar(),
+                      source.endChar());
                 })
             .toList(),
         List.copyOf(limitations));

@@ -95,7 +95,10 @@ public final class SpringAiDiscussionProvider implements DiscussionModelContract
     if (!ID.equals(plan.providerId())
         || !modelVersion.equals(plan.modelVersion())
         || !responseModel.equals(plan.expectedResponseModel())
-        || !(DiscussionPrompt.VERSION.equals(plan.promptVersion())
+        || !(DiscussionPrompt.CONTENT_VERSION.equals(plan.promptVersion())
+                && DiscussionPrompt.CONTENT_TAXONOMY.equals(plan.taxonomyVersion())
+            || io.echoinsight.intelligence.DiscussionDigestPlan.enabled(plan)
+            || DiscussionPrompt.VERSION.equals(plan.promptVersion())
                 && DiscussionPrompt.TAXONOMY.equals(plan.taxonomyVersion())
             || DiscussionPrompt.CONTEXT_VERSION.equals(plan.promptVersion())
                 && DiscussionPrompt.CONTEXT_TAXONOMY.equals(plan.taxonomyVersion())
@@ -116,10 +119,24 @@ public final class SpringAiDiscussionProvider implements DiscussionModelContract
   @Override
   public DiscussionModelContract.Response analyze(
       DiscussionModelContract.Request request, Duration timeout) {
+    return call(DiscussionPrompt.build(request, modelVersion), request.promptVersion(), timeout);
+  }
+
+  /** 分层归并沿用同一严格解析器、原生用量与单次出站，无工具或自动重试。 */
+  @Override
+  public DiscussionModelContract.Response digest(
+      io.echoinsight.model.DiscussionDigestContract.Request request, Duration timeout) {
+    return call(
+        DiscussionDigestPrompt.build(request, modelVersion), request.promptVersion(), timeout);
+  }
+
+  /** 共享响应信封校验，旧v3～v6与新v7保持相同收费及错误语义。 */
+  private DiscussionModelContract.Response call(
+      org.springframework.ai.chat.prompt.Prompt prompt, String promptVersion, Duration timeout) {
     if (timeout == null || timeout.isZero() || timeout.isNegative()) {
       throw new IllegalArgumentException("Timeout must be positive");
     }
-    ChatResponse response = model.call(DiscussionPrompt.build(request, modelVersion));
+    ChatResponse response = model.call(prompt);
     if (response == null || response.getResults().size() != 1 || response.hasToolCalls()) {
       throw new ModelContract.Failure("MODEL_RESPONSE_ENVELOPE");
     }
@@ -156,8 +173,8 @@ public final class SpringAiDiscussionProvider implements DiscussionModelContract
       throw new ModelContract.Failure("MODEL_RESPONSE_TOO_LARGE");
     String requestId = metadata.getId();
     if (requestId != null && requestId.isBlank()) requestId = null;
-    if (io.echoinsight.model.StanceProtocol.VERSION.equals(request.promptVersion())
-        || io.echoinsight.intelligence.StanceChunkPlanner.PROMPT.equals(request.promptVersion())) {
+    if (io.echoinsight.model.StanceProtocol.VERSION.equals(promptVersion)
+        || io.echoinsight.intelligence.StanceChunkPlanner.PROMPT.equals(promptVersion)) {
       try {
         io.echoinsight.model.StanceProtocol.Payload stance = STANCE_OUTPUT.readValue(content);
         if (stance == null || stance.decisions() == null)

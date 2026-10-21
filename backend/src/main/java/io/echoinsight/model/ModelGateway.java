@@ -161,6 +161,33 @@ public class ModelGateway implements AutoCloseable {
         DiscussionModelContract.Response::requestId);
   }
 
+  /** 普通完整讨论逐片/归并共享原线程池、批次检查点、租约和费用，不建立第二网关。 */
+  public DiscussionModelContract.Response digest(
+      String jobId,
+      String token,
+      ModelContract.Plan plan,
+      DiscussionDigestContract.Request request) {
+    DiscussionDigestContract.validateRequest(plan, request);
+    var provider = discussionProviders.get(plan.providerId());
+    if (provider == null || !provider.modelVersion().equals(plan.modelVersion()))
+      throw new ModelContract.Failure("MODEL_UNSUPPORTED_VERSION");
+    provider.validatePlan(plan);
+    return execute(
+        jobId,
+        token,
+        plan,
+        request.batchIndex(),
+        request,
+        request.maxInputTokens(),
+        request.maxOutputTokens(),
+        DiscussionModelContract.Response.class,
+        () -> provider.digest(request, Duration.ofMillis(plan.timeoutMs())),
+        response -> DiscussionDigestContract.validate(request, response),
+        DiscussionModelContract.Response::inputTokens,
+        DiscussionModelContract.Response::outputTokens,
+        DiscussionModelContract.Response::requestId);
+  }
+
   /** 独立内容只增加业务适配；共用同一个两线程上限、费用预留、超时、检查点及取消语义。 */
   public io.echoinsight.content.ContentModelContract.Response analyzeContent(
       String jobId,
@@ -251,6 +278,8 @@ public class ModelGateway implements AutoCloseable {
         request.promptVersion() == null
             ? io.echoinsight.model.springai.DiscussionPrompt.VERSION
             : request.promptVersion();
+    boolean contentContext =
+        io.echoinsight.model.springai.DiscussionPrompt.CONTENT_VERSION.equals(version);
     boolean partitioned = io.echoinsight.intelligence.StanceChunkPlanner.PROMPT.equals(version);
     boolean stance = StanceProtocol.VERSION.equals(version) || partitioned;
     if (partitioned) {
@@ -292,9 +321,10 @@ public class ModelGateway implements AutoCloseable {
     }
     if (!version.equals(plan.promptVersion())
         || !(stance
+            || contentContext
             || io.echoinsight.model.springai.DiscussionPrompt.CONTEXT_VERSION.equals(version))
         || request.context() == null
-        || request.context().size() > 43)
+        || request.context().size() > (contentContext ? 59 : 43))
       throw new ModelContract.Failure("MODEL_INVALID_REQUEST_BOUNDARY");
     Set<String> ids = new HashSet<>();
     for (var comment : request.comments())
@@ -314,6 +344,12 @@ public class ModelGateway implements AutoCloseable {
     for (var comment : request.comments())
       if (comment.parentCommentId() != null && !ids.contains(comment.parentCommentId()))
         throw new ModelContract.Failure("MODEL_INVALID_REQUEST_BOUNDARY");
+    if (contentContext) {
+      var backgrounds = DiscussionDigestContract.validateContext(request.context());
+      if (!Collections.disjoint(ids, backgrounds))
+        throw new ModelContract.Failure("MODEL_INVALID_REQUEST_BOUNDARY");
+      return;
+    }
     int referenceCount = 0, transcriptCount = 0, referenceChars = 0, transcriptChars = 0;
     int textChars = 0;
     for (var source : request.context()) {
@@ -503,23 +539,6 @@ public class ModelGateway implements AutoCloseable {
       StanceProtocol.validate(request, response.decisions());
       return;
     }
-    if (response == null
-        || response.decisions() != null
-        || response.issues() == null
-        || response.claims() == null
-        || response.relations() == null
-        || response.assessments() == null
-        || response.issues().isEmpty()
-        || response.issues().size() > 10
-        || response.claims().size() > 40
-        || response.relations().size() > 60
-        || response.inputTokens() < 0
-        || response.outputTokens() < 0
-        || response.inputTokens() > request.maxInputTokens()
-        || response.outputTokens() > request.maxOutputTokens()
-        || (response.requestId() != null && response.requestId().length() > 128)) {
-      invalid("MODEL_RESPONSE_SCHEMA");
-    }
     Set<String> evidence = new HashSet<>();
     for (var comment : request.comments()) {
       if (comment == null
@@ -532,74 +551,14 @@ public class ModelGateway implements AutoCloseable {
     Set<String> commentEvidence = new HashSet<>(evidence);
     if (request.context() != null)
       request.context().forEach(source -> evidence.add(source.evidenceId()));
-    Set<String> issueIds = new HashSet<>(), claimIds = new HashSet<>();
-    for (var issue : response.issues()) {
-      if (issue != null
-          && (!validEvidence(issue.evidenceIds(), evidence)
-              || !hasComment(issue.evidenceIds(), commentEvidence)))
-        invalid("MODEL_EVIDENCE_INVALID");
-      if (issue == null
-          || !validId(issue.id())
-          || !issueIds.add(issue.id())
-          || !validText(issue.question(), 300)
-          || !validText(issue.summary(), 1200)
-          || !validEvidence(issue.evidenceIds(), evidence)
-          || !hasComment(issue.evidenceIds(), commentEvidence)) invalid("MODEL_ISSUE_INVALID");
-    }
-    Map<String, String> claimIssues = new HashMap<>();
-    for (var claim : response.claims()) {
-      if (claim != null
-          && (!validEvidence(claim.evidenceIds(), evidence)
-              || !hasComment(claim.evidenceIds(), commentEvidence)))
-        invalid("MODEL_EVIDENCE_INVALID");
-      if (claim == null
-          || !validId(claim.id())
-          || !claimIds.add(claim.id())
-          || !issueIds.contains(claim.issueId())
-          || claim.reasoningStatus() == null
-          || !validText(claim.statement(), 1000)
-          || !validEvidence(claim.evidenceIds(), evidence)
-          || !hasComment(claim.evidenceIds(), commentEvidence)) invalid("MODEL_CLAIM_INVALID");
-      claimIssues.put(claim.id(), claim.issueId());
-    }
-    for (var relation : response.relations()) {
-      if (relation != null
-          && (!validEvidence(relation.evidenceIds(), evidence)
-              || !hasComment(relation.evidenceIds(), commentEvidence)))
-        invalid("MODEL_EVIDENCE_INVALID");
-      if (relation == null
-          || relation.fromClaimId() == null
-          || relation.toClaimId() == null
-          || relation.fromClaimId().equals(relation.toClaimId())
-          || !claimIds.contains(relation.fromClaimId())
-          || !claimIds.contains(relation.toClaimId())
-          || !Objects.equals(
-              claimIssues.get(relation.fromClaimId()), claimIssues.get(relation.toClaimId()))
-          || relation.type() == null
-          || relation.semanticStatus() == null
-          || !validEvidence(relation.evidenceIds(), evidence)
-          || !hasComment(relation.evidenceIds(), commentEvidence))
-        invalid("MODEL_RELATION_INVALID");
-    }
-    Set<String> assessed = new HashSet<>();
-    for (var assessment : response.assessments()) {
-      if (assessment != null
-          && (!validEvidence(assessment.evidenceIds(), evidence)
-              || !hasComment(assessment.evidenceIds(), commentEvidence)))
-        invalid("MODEL_EVIDENCE_INVALID");
-      if (assessment == null
-          || !issueIds.contains(assessment.issueId())
-          || !assessed.add(assessment.issueId())
-          || assessment.verdict() == null
-          || !validText(assessment.conclusion(), 1000)
-          || !validText(assessment.reason(), 1200)
-          || !validEvidence(assessment.evidenceIds(), evidence)
-          || !hasComment(assessment.evidenceIds(), commentEvidence))
-        invalid("MODEL_ASSESSMENT_INVALID");
-    }
-    if (request.includeAssessment()
-        ? !assessed.equals(issueIds)
-        : !response.assessments().isEmpty()) invalid("MODEL_ASSESSMENT_INVALID");
+    ArgumentMapValidator.validate(
+        response,
+        evidence,
+        commentEvidence,
+        request.includeAssessment(),
+        request.maxInputTokens(),
+        request.maxOutputTokens(),
+        ArgumentMapValidator.Limits.legacy());
   }
 
   /** 背景可以补充解释，但每个观众议题/观点/关系/评议仍须绑定至少一条真实评论。 */

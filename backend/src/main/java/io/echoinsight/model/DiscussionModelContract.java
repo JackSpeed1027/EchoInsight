@@ -135,7 +135,25 @@ public final class DiscussionModelContract {
       String sourceDescription,
       Long startMs,
       Long endMs,
-      String text) {}
+      String text,
+      @com.fasterxml.jackson.annotation.JsonInclude(
+              com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+          Integer startChar,
+      @com.fasterxml.jackson.annotation.JsonInclude(
+              com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+          Integer endChar) {
+    /** 保持旧参考和字幕的模型输入字节形状。 */
+    public ContextText(
+        String evidenceId,
+        String role,
+        String title,
+        String sourceDescription,
+        Long startMs,
+        Long endMs,
+        String text) {
+      this(evidenceId, role, title, sourceDescription, startMs, endMs, text, null, null);
+    }
+  }
 
   /** 观点的推理状态只描述给定文本，不推断外部事实。 */
   public enum ReasoningStatus {
@@ -231,5 +249,11 @@ public final class DiscussionModelContract {
 
     /** 执行一次讨论分析；重试、超时、预算和持久化由网关负责。 */
     Response analyze(Request request, Duration timeout) throws Exception;
+
+    /** 新完整讨论协议独立于旧Request，未实现的供应商在出站前明确拒绝。 */
+    default Response digest(DiscussionDigestContract.Request request, Duration timeout)
+        throws Exception {
+      throw new ModelContract.Failure("MODEL_UNSUPPORTED_VERSION");
+    }
   }
 }

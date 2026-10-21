@@ -31,6 +31,16 @@ public class DiscussionReportController {
     return reports.overview(projectId, requestId);
   }
 
+  /** 分页回看普通完整讨论节点及原文，不触发调用或重写结果。 */
+  @GetMapping("/synthesis-nodes")
+  public DiscussionReportService.NodePage nodes(
+      @PathVariable String projectId,
+      @PathVariable String requestId,
+      @RequestParam(defaultValue = "1") int page,
+      @RequestParam(defaultValue = "3") int size) {
+    return reports.nodes(projectId, requestId, page, size);
+  }
+
   /** 无模型调用的业务过滤，关键词最多80字。 */
   @GetMapping("/decisions")
   public DiscussionReportService.DecisionPage decisions(
@@ -56,11 +66,11 @@ public class DiscussionReportController {
         .header(
             HttpHeaders.CONTENT_DISPOSITION,
             "attachment; filename=\"echoinsight-discussion."
-                + (format.equals("json") ? "json" : "md")
+                + (!format.equals("markdown") ? "json" : "md")
                 + "\"")
         .contentType(
             MediaType.parseMediaType(
-                format.equals("json")
+                !format.equals("markdown")
                     ? "application/json;charset=UTF-8"
                     : "text/markdown;charset=UTF-8"))
         .body(body);

@@ -35,7 +35,38 @@ public class AnalysisRequestController {
       String proposition,
       String analysisScope,
       Boolean confirmFullScope,
-      String transcriptMaterialId) {}
+      String transcriptMaterialId,
+      String contentMaterialId,
+      Long contentFromMs,
+      Long contentToMs,
+      String baselineRequestId) {
+    /** 旧9字段调用不选择新背景。 */
+    public Create(
+        String instruction,
+        String snapshotId,
+        Boolean includeTranscript,
+        java.util.List<String> referenceIds,
+        Boolean allowPartialInput,
+        String proposition,
+        String analysisScope,
+        Boolean confirmFullScope,
+        String transcriptMaterialId) {
+      this(
+          instruction,
+          snapshotId,
+          includeTranscript,
+          referenceIds,
+          allowPartialInput,
+          proposition,
+          analysisScope,
+          confirmFullScope,
+          transcriptMaterialId,
+          null,
+          null,
+          null,
+          null);
+    }
+  }
 
   /** 首次请求201，网络重发200；两者都返回可轮询的持久请求。 */
   @PostMapping
@@ -55,7 +86,11 @@ public class AnalysisRequestController {
             body.proposition(),
             body.analysisScope(),
             Boolean.TRUE.equals(body.confirmFullScope()),
-            body.transcriptMaterialId());
+            body.transcriptMaterialId(),
+            body.contentMaterialId(),
+            body.contentFromMs(),
+            body.contentToMs(),
+            body.baselineRequestId());
     return ResponseEntity.status(result.created() ? 201 : 200)
         .location(
             URI.create(
@@ -67,7 +102,7 @@ public class AnalysisRequestController {
   @PostMapping("/preview")
   public io.echoinsight.intelligence.AnalysisPreflight.View preview(
       @PathVariable String projectId, @RequestBody Create body) {
-    return preflight.previewWithMaterial(
+    return preflight.previewWithContent(
         projectId,
         body.snapshotId(),
         Boolean.TRUE.equals(body.includeTranscript()),
@@ -75,7 +110,11 @@ public class AnalysisRequestController {
         body.instruction(),
         body.proposition(),
         body.analysisScope(),
-        body.transcriptMaterialId());
+        body.transcriptMaterialId(),
+        body.contentMaterialId(),
+        body.contentFromMs(),
+        body.contentToMs(),
+        body.baselineRequestId());
   }
 
   /** 外层对象始终返回JSON，旧请求specification为null，客户端无需解析空204正文。 */
@@ -108,8 +147,9 @@ public class AnalysisRequestController {
   public AnalysisRequestStore.Page<AnalysisRequestStore.RequestRow> list(
       @PathVariable String projectId,
       @RequestParam(defaultValue = "1") int page,
-      @RequestParam(defaultValue = "10") int size) {
-    return requests.list(projectId, page, size);
+      @RequestParam(defaultValue = "10") int size,
+      @RequestParam(required = false) String baselineForSnapshotId) {
+    return requests.list(projectId, page, size, baselineForSnapshotId);
   }
 
   /** 状态包含任务与产物入口，页面据此轮询，不自己估算完成时间。 */

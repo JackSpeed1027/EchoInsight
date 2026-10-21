@@ -83,7 +83,18 @@ export function evidenceSource(item: {
   title?: string | null
   startMs?: number | null
   endMs?: number | null
+  startChar?: number | null
+  endChar?: number | null
 }) {
+  if (item.sourceRole === 'CONTENT_TEXT') {
+    const position =
+      item.startMs != null && item.endMs != null
+        ? `${(item.startMs / 1000).toFixed(3)}～${(item.endMs / 1000).toFixed(3)}秒`
+        : item.startChar != null && item.endChar != null
+          ? `原文字符[${item.startChar}, ${item.endChar})`
+          : '定位未知'
+    return `内容原文 · ${item.title || '用户选择材料'} · ${position}（关联与来源未认证）`
+  }
   if (item.sourceRole === 'REFERENCE_TEXT')
     return '参考资料 · ' + (item.title || '用户提供文本') + '（来源未认证）'
   if (item.sourceRole === 'TRANSCRIPT') {

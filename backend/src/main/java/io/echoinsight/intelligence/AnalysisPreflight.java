@@ -60,7 +60,13 @@ public class AnalysisPreflight {
       List<String> notes,
       AnalysisSpecification.Resolution goal,
       AnalysisScopeStore.Estimate fullScope,
-      SourceCoverageStore.Coverage sourceCoverage) {}
+      SourceCoverageStore.Coverage sourceCoverage,
+      @com.fasterxml.jackson.annotation.JsonInclude(
+              com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+          AnalysisContextStore.ContentBinding content,
+      @com.fasterxml.jackson.annotation.JsonInclude(
+              com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+          DiscussionDigestReuse.Receipt reuse) {}
 
   /** 1、核对项目成员；2、核对背景版本；3、同规则选择；4、返回业务范围，不调用模型。 */
   @Transactional(readOnly = true)
@@ -113,21 +119,116 @@ public class AnalysisPreflight {
       String proposition,
       String analysisScope,
       String transcriptMaterialId) {
+    return previewWithContent(
+        projectId,
+        snapshotId,
+        transcript,
+        references,
+        instruction,
+        proposition,
+        analysisScope,
+        transcriptMaterialId,
+        null,
+        null,
+        null);
+  }
+
+  /** 独立内容选择同提交规则，返回选择/遗漏和策略，不把词法命中当语义质量。 */
+  @Transactional(readOnly = true)
+  public View previewWithContent(
+      String projectId,
+      String snapshotId,
+      boolean transcript,
+      List<String> references,
+      String instruction,
+      String proposition,
+      String analysisScope,
+      String transcriptMaterialId,
+      String contentMaterialId,
+      Long contentFromMs,
+      Long contentToMs) {
+    return previewWithContent(
+        projectId,
+        snapshotId,
+        transcript,
+        references,
+        instruction,
+        proposition,
+        analysisScope,
+        transcriptMaterialId,
+        contentMaterialId,
+        contentFromMs,
+        contentToMs,
+        null);
+  }
+
+  /** 只读核对显式基准及真实可复用分片，任何资格错误都不静默变更收费方式。 */
+  @Transactional(readOnly = true)
+  public View previewWithContent(
+      String projectId,
+      String snapshotId,
+      boolean transcript,
+      List<String> references,
+      String instruction,
+      String proposition,
+      String analysisScope,
+      String transcriptMaterialId,
+      String contentMaterialId,
+      Long contentFromMs,
+      Long contentToMs,
+      String baselineRequestId) {
     var goal = instruction == null ? null : AnalysisSpecification.resolve(instruction, proposition);
     boolean stance = goal != null && goal.stanceRequested();
     var input = load(projectId, snapshotId);
     var context =
-        contexts.prepareWithMaterial(
-            projectId, snapshotId, transcript, references, transcriptMaterialId, instruction);
+        contexts.prepareAll(
+            projectId,
+            snapshotId,
+            transcript,
+            references,
+            transcriptMaterialId,
+            instruction,
+            contentMaterialId,
+            contentFromMs,
+            contentToMs);
+    if (stance && contentMaterialId != null && !contentMaterialId.isBlank())
+      throw new ResponseStatusException(
+          HttpStatus.UNPROCESSABLE_ENTITY, "独立内容对照当前用于讨论梳理；逐条命题分析请使用作品字幕或参考文本背景");
     boolean model = "MODEL".equals(plans.discussion().reportMode());
-    boolean full = stance && AnalysisScopeStore.full(instruction, analysisScope);
+    boolean full =
+        stance ? AnalysisScopeStore.full(instruction, analysisScope) : "FULL".equals(analysisScope);
     if (analysisScope != null) AnalysisScopeStore.full(instruction, analysisScope);
-    var estimate = full ? scopes.estimate(projectId, snapshotId, plans.discussionFull()) : null;
+    if (baselineRequestId != null && !baselineRequestId.isBlank() && (!full || stance))
+      throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "讨论基准复用仅支持普通完整讨论");
+    boolean assessment =
+        !stance
+            && instruction != null
+            && !instruction.isBlank()
+            && new IntentPlanner().plan(instruction.strip()).includeAssessment();
+    var digest =
+        full && !stance
+            ? scopes.previewFull(
+                projectId,
+                snapshotId,
+                plans.discussionDigest(),
+                instruction,
+                assessment,
+                context,
+                baselineRequestId)
+            : null;
+    var estimate =
+        full
+            ? stance
+                ? scopes.estimate(projectId, snapshotId, plans.discussionFull())
+                : digest.estimate()
+            : null;
     var selection = selection(input, stance);
     var notes = new ArrayList<String>();
     notes.add(
         full
-            ? "完整范围按固定分片执行，每片最多12条归属评论，父语境独立；所有片成功才发布完整统计。"
+            ? stance
+                ? "完整命题每片最多12条归属评论，父语境独立；全部成功才发布统计。"
+                : "完整讨论每片最多40目标/120条含祖先/80000字符，8路分层归并；全部成功才发布，不是逐条立场统计。"
             : stance
                 ? "命题分析最多选12条、12000字符，逐条覆盖并保留多主张；未选部分不推断立场。"
                 : "这是讨论梳理，不是逐条全量立场分类；不自动使用正面、负面、中立回答你的问题。");
@@ -137,7 +238,7 @@ public class AnalysisPreflight {
               ? "上传字幕没有字词命中，本次没有选入字幕背景，不代表视频没有相关内容。"
               : "字幕仅选本问题字词命中及前后邻段；时间引用保留，但不证明理解全片或创作者意图。");
     if (goal != null) notes.add(goal.explanation());
-    if (full) notes.add("完整范围仅指本快照全部已保存评论，不等于平台全量；父语境可重复输入，但目标评论只归属一次。完整处理将按固定分片执行，全部成功并对账后才发布结果。");
+    if (full) notes.add("完整范围仅指本快照全部已保存评论，不等于平台全量；父语境可重复输入但目标只归属一次。普通讨论会压缩后汇总，不能保证穷尽每个观点或语义准确。");
     notes.add(
         model ? "启用模型后按下列有限输入执行；全部评论已发送也不代表每条都形成结论。" : "当前为免费结构演示，没有向模型发送评论；下列选择数量仅说明启用模型后的输入边界。");
     if (!full && selection.truncated()) notes.add("部分评论因数量、字符或父上下文边界未选入；不能回答为所有评论的总体结论。");
@@ -159,7 +260,11 @@ public class AnalysisPreflight {
         List.copyOf(notes),
         goal,
         estimate,
-        sourceCoverage.prepare(projectId, snapshotId));
+        sourceCoverage.prepare(projectId, snapshotId),
+        context.selection() == null ? null : context.selection().content(),
+        digest == null || digest.manifest() == null
+            ? null
+            : DiscussionDigestReuse.receipt(digest.manifest().reuse()));
   }
 
   /** 接受新HTTP请求时再次检查实际MODEL输入；未同意裁剪时拒绝且外层事务回滚。 */

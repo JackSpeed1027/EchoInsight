@@ -1,7 +1,16 @@
+/* 文件职责：定义工作台统一的颜色、排版、导航、表单和报告阅读样式，并覆盖桌面及窄屏布局。 */
 :root {
+  --canvas: #f4f6f5;
+  --surface: #ffffff;
+  --ink: #243b34;
+  --muted: #5f716b;
+  --line: #dce5df;
+  --accent: #246d56;
+  --accent-soft: #e9f3ed;
+  --radius: 14px;
   font-family: Inter, 'Segoe UI', 'Microsoft YaHei', sans-serif;
-  color: #24352f;
-  background: #f5f7f8;
+  color: var(--ink);
+  background: var(--canvas);
   font-synthesis: none;
   font-size: 14px;
 }
@@ -58,9 +67,9 @@ a {
   text-decoration: none;
 }
 .primary {
-  background: #286e54;
+  background: var(--accent);
   color: #fff;
-  border-color: #286e54;
+  border-color: var(--accent);
 }
 .primary:hover:not(:disabled) {
   background: #205940;
@@ -81,7 +90,7 @@ a {
 }
 p {
   font-size: 14px;
-  color: #718078;
+  color: var(--muted);
   line-height: 1.8;
 }
 h1,
@@ -127,7 +136,7 @@ small,
 .sidebar {
   position: fixed;
   inset: 0 auto 0 0;
-  width: 226px;
+  width: 224px;
   background: #fcfdfc;
   border-right: 1px solid #e2e8e4;
   padding: 31px 19px;
@@ -182,9 +191,9 @@ small,
   font-size: 12px;
 }
 .nav-label {
-  font-size: 10px;
-  letter-spacing: 2px;
-  color: #9aa69d;
+  font-size: 11px;
+  letter-spacing: 1.4px;
+  color: var(--muted);
   margin: 30px 11px 13px;
 }
 .sidebar nav {
@@ -198,7 +207,7 @@ small,
   padding: 13px 15px;
   border-radius: 8px;
   font-size: 13px;
-  color: #758277;
+  color: #65775e;
 }
 .sidebar nav a span {
   font-size: 17px;
@@ -235,17 +244,17 @@ small,
   margin-top: 25px;
 }
 .app-main {
-  margin-left: 226px;
+  margin-left: 224px;
   min-height: 100vh;
 }
 .app-header {
-  height: 77px;
+  height: 68px;
   background: #fff;
   border-bottom: 1px solid #e5eae6;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 45px;
+  padding: 0 36px;
   gap: 18px;
 }
 .breadcrumb {
@@ -265,7 +274,7 @@ small,
   font-size: 11px;
   border: 1px solid #eadfc7;
   background: #fbf7ed;
-  color: #9a865a;
+  color: #806a3a;
   padding: 5px 10px;
   border-radius: 20px;
 }
@@ -292,7 +301,7 @@ small,
 .page-content {
   max-width: 1350px;
   margin: auto;
-  padding: 36px 45px 18px;
+  padding: 32px 36px 24px;
   min-height: calc(100vh - 145px);
 }
 .page-heading {
@@ -309,9 +318,9 @@ small,
   margin: 7px 0 0;
 }
 .eyebrow {
-  font-size: 10px;
-  letter-spacing: 2px;
-  color: #99a495;
+  font-size: 11px;
+  letter-spacing: 1.6px;
+  color: #607c6d;
   margin: 0;
   font-weight: 700;
 }
@@ -328,11 +337,11 @@ small,
 .workspace-note strong {
   font-size: 13px;
   font-weight: 600;
-  color: #4f7159;
+  color: #46683b;
 }
 .workspace-note p {
   font-size: 12px;
-  color: #849b85;
+  color: #718568;
   margin: 5px 0 0;
 }
 .note-icon {
@@ -384,7 +393,7 @@ small,
   white-space: normal;
   padding: 23px;
   background: #fff;
-  border: 1px solid #e0e7df;
+  border: 1px solid var(--line);
   border-radius: 12px;
   color: #2f4436;
   min-height: 255px;
@@ -420,8 +429,8 @@ small,
   line-height: 1.5;
 }
 .project-goal {
-  font-size: 12px;
-  color: #94a18e;
+  font-size: 13px;
+  color: #697b66;
   line-height: 1.8;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -432,14 +441,14 @@ small,
 .project-card-stats {
   display: flex;
   gap: 16px;
-  font-size: 10px;
-  color: #91a08b;
+  font-size: 12px;
+  color: #74856b;
   margin: 20px 0 17px;
   flex-wrap: wrap;
 }
 .project-card-stats b {
   font-size: 13px;
-  color: #71896a;
+  color: #4d6e3c;
   font-weight: 500;
 }
 .project-card-bottom {
@@ -448,17 +457,17 @@ small,
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  font-size: 10px;
-  color: #acb6a4;
+  font-size: 11px;
+  color: #7c8c72;
 }
 .project-card-bottom strong {
-  color: #7c9a6b;
+  color: #557c3c;
   font-weight: 500;
 }
 .surface,
 .material-card {
   background: #fff;
-  border: 1px solid #e0e7df;
+  border: 1px solid var(--line);
   border-radius: 12px;
   padding: 26px;
 }
@@ -553,7 +562,7 @@ small,
   align-items: center;
   flex-wrap: wrap;
   margin: 4px 0 26px;
-  color: #8b9b82;
+  color: #718565;
   font-size: 12px;
 }
 .project-summary b {
@@ -583,11 +592,11 @@ small,
   border-radius: 0;
   background: transparent;
   padding: 12px 2px;
-  color: #9bab8d;
+  color: #687c5b;
   font-size: 13px;
 }
 .project-tabs .selected {
-  color: #61894d;
+  color: #3d6f29;
   border-bottom-color: #7b9c60;
   font-weight: 650;
 }
@@ -600,7 +609,7 @@ small,
 .source-badge {
   font-size: 10px;
   background: #eef4e9;
-  color: #809b6b;
+  color: #527137;
   border: 1px solid #e4ecdd;
   border-radius: 4px;
   padding: 4px 8px;
@@ -616,11 +625,11 @@ small,
 }
 .state-badge.success {
   background: #eaf4e3;
-  color: #7a9c5e;
+  color: #507635;
 }
 .state-badge.failed {
   background: #fbefea;
-  color: #ae7d68;
+  color: #9b5f45;
 }
 .state-badge.running {
   background: #edf2f8;
@@ -636,7 +645,7 @@ small,
 }
 .metadata-detail {
   font-size: 11px;
-  color: #8c9f7b;
+  color: #6c805c;
 }
 .metadata-detail p {
   overflow-wrap: anywhere;
@@ -660,7 +669,7 @@ small,
 }
 .goal-surface p {
   white-space: pre-wrap;
-  color: #7f9572;
+  color: #627955;
 }
 .goal-surface h2 {
   margin-top: 18px;
@@ -680,12 +689,12 @@ small,
 }
 .import-choices button strong {
   display: block;
-  color: #7c976c;
+  color: #507537;
   font-size: 13px;
 }
 .import-choices button span {
   display: block;
-  color: #a5b599;
+  color: #798d6c;
   font-size: 11px;
   margin-top: 7px;
 }
@@ -738,13 +747,13 @@ small,
 .history-row h3 {
   font-size: 15px;
   margin: 10px 0 5px;
-  color: #6b875b;
+  color: #48683a;
   line-height: 1.6;
 }
 .history-row p {
   font-size: 11px;
   margin: 0;
-  color: #a9b79c;
+  color: #75866a;
 }
 .history-row > button {
   font-size: 12px;
@@ -881,12 +890,12 @@ small,
   display: block;
   font-size: 27px;
   font-weight: 600;
-  color: #6f8e5b;
+  color: #52783c;
 }
 .report-metrics span {
   display: block;
   margin-top: 8px;
-  color: #9caf8e;
+  color: #738a63;
   font-size: 11px;
 }
 .mock-note {
@@ -894,7 +903,7 @@ small,
   border: 1px solid #eae0c8;
   padding: 14px 18px;
   border-radius: 8px;
-  color: #a49166;
+  color: #887139;
   font-size: 13px;
   line-height: 1.9;
 }
@@ -1175,106 +1184,19 @@ small,
   }
 }
 
-p {
-  color: #66766a;
-}
-.project-goal {
-  font-size: 13px;
-  color: #697b66;
-}
-.project-card-stats {
-  font-size: 12px;
-  color: #74856b;
-}
-.project-card-stats b {
-  color: #4d6e3c;
-}
-.project-card-bottom {
-  font-size: 11px;
-  color: #7c8c72;
-}
-.project-card-bottom strong {
-  color: #557c3c;
-}
-.project-tabs button {
-  color: #687c5b;
-}
-.project-tabs .selected {
-  color: #3d6f29;
-}
-.material-card > p,
-.small,
-small {
-  color: #75846c;
-}
-.state-badge.success {
-  color: #507635;
-}
-.state-badge.failed {
-  color: #9b5f45;
-}
-.source-badge {
-  color: #527137;
-}
-.metadata-detail {
-  color: #6c805c;
-}
-.workspace-note p {
-  color: #718568;
-}
-.workspace-note strong {
-  color: #46683b;
-}
-.sidebar nav a {
-  color: #65775e;
-}
-.history-row h3 {
-  color: #48683a;
-}
-.history-row p {
-  color: #75866a;
-}
-.project-summary {
-  color: #718565;
-}
-.goal-surface p {
-  color: #627955;
-}
-.report-metrics b {
-  color: #52783c;
-}
-.report-metrics span {
-  color: #738a63;
-}
-.mode-badge {
-  color: #806a3a;
-}
-.mock-note {
-  color: #887139;
-}
-.guide-grid p,
-.guide-limit p {
-  color: #6f8063;
-}
-.import-choices button strong {
-  color: #507537;
-}
-.import-choices button span {
-  color: #798d6c;
-}
-.app-main .analysis-panel > h3 {
-  font-size: 20px;
-}
 .export-actions summary {
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
-  color: #55783e;
+  color: var(--accent);
 }
 .technical-detail li {
   font-size: 13px;
   line-height: 1.9;
-  color: #718863;
+  color: var(--muted);
+}
+.app-main .analysis-panel > h3 {
+  font-size: 20px;
 }
 
 /* 智能分析页：输入目标、查看证据化结果；界面不暴露模型和内部工具配置。 */
@@ -1305,9 +1227,9 @@ small {
 .artifact-view,
 .request-history {
   background: #fff;
-  border: 1px solid #dfe8da;
+  border: 1px solid var(--line);
   border-radius: 14px;
-  padding: 25px;
+  padding: 28px;
 }
 .insight-composer .field {
   margin-top: 0;
@@ -1538,4 +1460,689 @@ small {
   .analysis-progress > div {
     align-items: flex-start;
   }
+}
+
+/* 1、工作台导航与主线：相同操作使用相同间距、边框及活动态，避免页面入口争抢注意力。 */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 12px;
+  transform: translateY(-180%);
+  z-index: 30;
+  background: var(--accent);
+  color: white;
+  padding: 12px 18px;
+  border-radius: 8px;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: #fffffff2;
+  backdrop-filter: blur(12px);
+}
+.app-main,
+.page-content,
+.page-content > section {
+  min-width: 0;
+}
+.page-heading h1 {
+  line-height: 1.35;
+}
+.workspace-intro {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px 8px;
+  margin-bottom: 30px;
+}
+.workspace-intro > div {
+  padding: 0 24px;
+  min-width: 0;
+}
+.workspace-intro > div + div {
+  border-left: 1px solid var(--line);
+}
+.workspace-intro span {
+  display: inline-block;
+  color: #788e82;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  margin-right: 10px;
+}
+.workspace-intro strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+.workspace-intro p {
+  font-size: 13px;
+  margin: 10px 0 0;
+}
+.project-card {
+  min-height: 260px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    transform 0.15s;
+}
+.project-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px #233d2e0b;
+}
+.project-card h3 {
+  margin-top: 18px;
+  color: var(--ink);
+}
+.project-card-bottom {
+  align-items: center;
+}
+.project-navigation {
+  display: flex;
+  align-items: start;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 26px;
+}
+.project-navigation .project-tabs {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  gap: 24px;
+}
+.project-navigation .project-tabs button {
+  padding: 14px 0;
+  min-height: 49px;
+}
+.project-more {
+  flex: none;
+  min-width: 70px;
+  position: relative;
+}
+.project-more > summary {
+  padding: 15px 8px;
+  list-style: none;
+  color: var(--muted);
+  font-size: 13px;
+}
+.project-more > summary::after {
+  content: '⌄';
+  margin-left: 8px;
+}
+.project-more nav {
+  position: absolute;
+  top: 50px;
+  right: 0;
+  width: 172px;
+  z-index: 6;
+  display: grid;
+  padding: 6px;
+  border: 1px solid var(--line);
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 12px 32px #1c382619;
+}
+.project-more button {
+  text-align: left;
+  border: 0;
+  font-size: 13px;
+  background: white;
+}
+.project-more .selected {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.project-summary {
+  gap: 24px;
+  padding-bottom: 10px;
+}
+.project-summary b {
+  font-size: 18px;
+}
+.project-summary .summary-hint {
+  order: 1;
+}
+.material-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.material-card .material-actions {
+  margin-top: auto;
+  padding-top: 20px;
+}
+.material-top {
+  flex-wrap: wrap;
+}
+.connection-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  margin-bottom: 20px;
+  background: #fff6e7;
+  border: 1px solid #e9d7b0;
+  border-radius: 10px;
+  color: #796037;
+  font-size: 13px;
+}
+
+/* 2、统一控件和反馈：长内容自然换行，键盘焦点可见，错误原因与下一步操作一同显示。 */
+button {
+  line-height: 1.45;
+}
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+input:not([type='checkbox']):not([type='radio']),
+select,
+textarea {
+  max-width: 100%;
+  min-width: 0;
+  border: 1px solid #cedbd3;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--ink);
+  padding: 11px 12px;
+  line-height: 1.6;
+}
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--accent);
+  flex: none;
+}
+input[type='file'] {
+  white-space: normal;
+  font-size: 13px;
+}
+textarea {
+  resize: vertical;
+}
+input::placeholder,
+textarea::placeholder {
+  color: #77877e;
+}
+.field {
+  font-size: 14px;
+  gap: 10px;
+}
+summary {
+  cursor: pointer;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 5px;
+  border-radius: 3px;
+}
+details > summary {
+  color: var(--accent);
+  font-size: 13px;
+}
+details[open] > summary {
+  margin-bottom: 14px;
+}
+[role='status'],
+.scope-copy,
+.small,
+small {
+  line-height: 1.75;
+}
+.error {
+  border: 1px solid #ebcfc7;
+  line-height: 1.8;
+}
+.empty-state {
+  padding: 52px 24px;
+}
+.empty-state button + button {
+  margin-left: 8px;
+}
+.import-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(235px, 1fr));
+  gap: 12px;
+}
+.import-choices button {
+  min-width: 0;
+  border-radius: 11px;
+}
+.import-choices .selected {
+  border-color: #81ad95;
+  background: #f1f8f3;
+  box-shadow: inset 0 0 0 1px #81ad95;
+}
+.import-choices button span {
+  line-height: 1.65;
+}
+.pagination {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* 3、问题与报告：问题先于可选配置，完成后把阅读空间交给结果；技术与复核信息按需展开。 */
+.analysis-intro {
+  margin: -10px 0 0;
+  font-size: 13px;
+  max-width: 75ch;
+}
+.composer-disclosure {
+  border: 1px solid var(--line);
+  background: white;
+  border-radius: var(--radius);
+}
+.composer-disclosure > summary {
+  padding: 18px 24px;
+  font-size: 15px;
+  color: var(--ink);
+  font-weight: 600;
+}
+.composer-disclosure > summary span {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 16px;
+}
+.composer-disclosure[open] > summary {
+  margin: 0;
+  border-bottom: 1px solid #e9eeea;
+}
+.composer-disclosure .insight-composer {
+  border: 0;
+  border-radius: 0 0 var(--radius) var(--radius);
+  padding: 24px;
+}
+.command-field textarea {
+  min-height: 124px;
+  font-size: 15px;
+  line-height: 1.85;
+  background: #fcfefd;
+}
+.question-examples {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 20px;
+}
+.question-examples > span {
+  font-size: 12px;
+  color: var(--muted);
+  margin-right: 4px;
+}
+.question-examples button {
+  min-height: 31px;
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: #f7faf8;
+}
+.background-options,
+.reuse-options {
+  border-top: 1px solid #e7ede8;
+  padding: 15px 0;
+}
+.reuse-options {
+  margin-top: 18px;
+}
+.insight-composer > .field + .field {
+  margin-top: 20px;
+}
+.insight-composer > .scope-preview {
+  margin-top: 22px;
+}
+.insight-composer .scope-preview h3 {
+  font-size: 15px;
+}
+.composer-actions {
+  padding-top: 18px;
+  border-top: 1px solid #e9eeea;
+}
+.composer-actions .primary {
+  min-width: 160px;
+}
+.report-downloads {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.report-downloads a {
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--accent);
+}
+.report-downloads a:hover {
+  background: var(--accent-soft);
+}
+.artifact-view {
+  padding: 28px;
+}
+.artifact-heading h2 {
+  line-height: 1.5;
+}
+.issue-card {
+  padding: 24px;
+}
+.issue-card > p,
+.claim-item p,
+.assessment-box p {
+  font-size: 14px;
+  line-height: 1.85;
+}
+.issue-card h3 {
+  font-size: 19px;
+}
+.claim-item {
+  border-left-color: #8eb39c;
+  background: #f6f9f7;
+  border-radius: 0 8px 8px 0;
+}
+.claim-item blockquote,
+.assessment-box blockquote {
+  font-size: 14px;
+  background: white;
+  padding: 14px;
+  border-radius: 8px;
+}
+.scope-strip {
+  background: #f0f5f2;
+}
+.analysis-limits li {
+  font-size: 13px;
+}
+.context-scope > h3 {
+  display: none;
+}
+.content-question > h3 {
+  margin-top: 0;
+}
+.content-question > .primary,
+.content-upload form > .primary {
+  justify-self: start;
+}
+.content-reuse {
+  padding: 15px 0;
+  border-block: 1px solid var(--line);
+}
+.content-empty-hint {
+  padding: 18px 22px;
+  background: var(--accent-soft);
+  border-radius: 10px;
+  color: #476651;
+  line-height: 1.8;
+}
+.content-workspace .source-text {
+  font-size: 14px;
+  line-height: 1.9;
+}
+.content-workspace .content-raw form {
+  flex-wrap: wrap;
+}
+.content-result > details {
+  padding-block: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* 4、窄屏保留完整操作：只让标签栏局部滚动，不裁掉表单、提示或报告内容。 */
+@media (max-width: 1050px) {
+  .workspace-intro > div {
+    padding-inline: 18px;
+  }
+  .project-navigation .project-tabs {
+    gap: 18px;
+  }
+}
+@media (max-width: 700px) {
+  :root {
+    font-size: 14px;
+  }
+  .sidebar {
+    padding: 16px;
+  }
+  .brand {
+    font-size: 19px;
+  }
+  .sidebar nav a {
+    font-size: 12px;
+    gap: 6px;
+    padding: 10px 8px;
+  }
+  .app-header {
+    height: auto;
+    min-height: 56px;
+    padding: 10px 16px;
+    gap: 8px;
+  }
+  .breadcrumb {
+    font-size: 11px;
+  }
+  .breadcrumb span {
+    margin-inline: 5px;
+  }
+  .header-status {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .mode-badge {
+    max-width: 100%;
+    white-space: normal;
+  }
+  .page-content {
+    padding: 24px 16px;
+  }
+  .page-heading {
+    margin-bottom: 20px;
+  }
+  h1 {
+    font-size: 27px;
+  }
+  .workspace-intro {
+    grid-template-columns: 1fr;
+    padding: 4px 18px;
+    gap: 0;
+  }
+  .workspace-intro > div {
+    padding: 16px 0;
+  }
+  .workspace-intro > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .workspace-intro p {
+    margin: 6px 0 0 28px;
+  }
+  .project-grid,
+  .material-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .surface,
+  .material-card {
+    padding: 20px;
+  }
+  .project-summary {
+    gap: 12px 18px;
+    font-size: 11px;
+  }
+  .project-summary b {
+    font-size: 17px;
+  }
+  .project-navigation {
+    gap: 8px;
+  }
+  .project-navigation .project-tabs {
+    gap: 18px;
+    scrollbar-width: thin;
+  }
+  .project-tabs button {
+    font-size: 13px;
+  }
+  .project-more {
+    min-width: 56px;
+  }
+  .project-more > summary {
+    padding-inline: 0;
+  }
+  .project-more > summary span {
+    display: none;
+  }
+  .project-card-stats {
+    gap: 10px 16px;
+  }
+  .section-toolbar,
+  .material-actions,
+  .composer-actions {
+    flex-wrap: wrap;
+  }
+  .section-toolbar > div {
+    min-width: 0;
+  }
+  .insight-hero h2 {
+    font-size: 23px;
+  }
+  .insight-hero {
+    gap: 12px;
+  }
+  .composer-disclosure > summary {
+    padding: 16px 18px;
+  }
+  .composer-disclosure > summary span {
+    display: block;
+    margin: 4px 0 0 14px;
+  }
+  .composer-disclosure .insight-composer,
+  .artifact-view {
+    padding: 18px;
+  }
+  .selected-material {
+    flex-wrap: wrap;
+    padding: 12px;
+  }
+  .selected-material strong {
+    flex-basis: 65%;
+  }
+  .composer-actions .primary {
+    flex: 1;
+  }
+  .issue-card {
+    padding: 18px;
+  }
+  .issue-card h3 {
+    font-size: 18px;
+  }
+  .assessment-box {
+    padding: 14px;
+  }
+  .scope-strip {
+    padding: 12px;
+    gap: 8px;
+  }
+  .content-range {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .content-workspace .content-raw form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .content-history button {
+    min-width: 0;
+  }
+  .empty-state button + button {
+    margin: 10px 0 0;
+  }
+  .connection-banner {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .report-downloads {
+    gap: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+}
+
+/* 任务卡片与内容操作延续统一主题；定位目标避开吸顶页头，窄屏操作不会跳到不可见区域。 */
+.content-question,
+.content-upload {
+  scroll-margin-top: 88px;
+}
+.page-content .task-card {
+  background: white;
+  border-color: var(--line);
+  padding: 20px;
+  border-radius: 12px;
+}
+.page-content .task-card.chosen {
+  background: #f4f9f5;
+  border-color: #85aa96;
+}
+.page-content .task-counts {
+  background: var(--accent-soft);
+  color: #466651;
+  padding: 18px;
+}
+.page-content .task-detail {
+  background: white;
+  border: 1px solid var(--line);
+  padding: 20px;
+}
+@media (min-width: 1200px) {
+  .page-content .task-detail {
+    top: 88px;
+  }
+}
+
+/* 观点关系按有向回应阅读，语义推断和原文结构分别标注，默认折叠以免抢占结论区域。 */
+.argument-relations {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+.argument-relation {
+  padding-block: 14px;
+}
+.argument-relation + .argument-relation {
+  border-top: 1px solid var(--line);
+}
+.argument-relation > p {
+  margin: 6px 0;
+  color: var(--ink);
+  font-size: 14px;
+}
+.argument-relation > strong {
+  display: block;
+  padding-block: 4px;
+  font-size: 12px;
+  color: var(--accent);
+}
+.argument-relation > small {
+  display: block;
+  margin-block: 8px;
+}
+.argument-relation blockquote {
+  border-left: 3px solid #c1d7c8;
+  margin: 12px 0 0;
+  padding: 12px;
+  background: #f8faf8;
 }

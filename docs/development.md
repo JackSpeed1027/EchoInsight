@@ -252,3 +252,43 @@ HTTP验收发现内容容量422被通用提示遮蔽；已将固定的容量、�
 回归运行mvn verify、pnpm --dir frontend test、format:check、build，以及python -m unittest discover -s tools -p "test_*.py"。增量测试类ContentReuseTest、ContentReuseWorkflowIT和SpringAiContentProviderTest；集成测试工作空间/执行范围content-reuse-it，真实模型/付费/平台关闭。首次tools/tests路径不存在的命令错误日志保留，正确命令按实际tools目录执行；不是测试逻辑失败。
 
 本批UI/HTTP只用隔离delivery-98-107范围和合成资料；普通运行保持8080/5173，隔离8081/5174完成后按PID/启动时间/命令归属停止。具体测试数量、运行身份与GitHub CI见本机runtime/rounds98-107-delivery-summary.json，不将工程替身记为DeepSeek真实质量成绩。
+
+
+## 16. 第108～137轮与整体UI：运行、操作及排错
+
+仍使用IDEA根工程、Java21、Spring Boot、Spring AI 1.1.8、本机MySQL5.7和Vue3，无新迁移/服务/凭据。启动入口和io.echoinsight包名不改；业务API90，数据库V25/39表。产品和每项建设用途见基准§21，URL/字段见API§28。
+
+1. “资料与作品”添加评论，“文本与字幕”保存独立内容。前者是作品评论快照，后者可无评论独立提问；内容也能在普通评论分析中显式绑定为对照。不要把上传内容自动视为创作者认证声明。
+2. “智能分析”输入自然语言，完整范围默认覆盖当前已保存快照。先核对目标条数、新调用数及费用上界，再勾选确认提交。免费演示只有计划与原文讨论结构，已执行语义分片0；模型关闭时不能测试真实语义缓存命中。
+3. “补充背景”按需选择字幕、参考、独立内容；大材料按词法邻域或明确时间窗口取完整原段，无命中为空。超出背景总量应减少选择，不绕过上限。更换材料/窗口必须重新核对。
+4. 更新同作品评论后，“沿用已有分析”手动选成功v7报告。候选是粗筛，预检仍比较原问题、完整计划、背景及每片实际输入。取消基准可换问题、全部重做。内容独立任务仍在“文本与字幕”，用原v3增量入口，两种基准不可互用。
+5. 报告先读议题与理由，再展开原文、背景、分段归纳、复用来源或执行费用。完成后新建表单默认收起。“更多”仍能打开资料集合、早期反馈报告、项目目标；旧URL未失效。
+
+| 主要类/页面 | 负责什么、为什么放这里 |
+|---|---|
+| DiscussionDigestPlan / StanceChunkPlanner | 唯一目标分片、完整父语境、扇入8层级计划；旧立场默认12目标不变 |
+| ArgumentMapValidator / DiscussionDigestContract | 共用论证图语义结构边界及各阶段上限；不复制四套近似校验 |
+| DiscussionDigestPrompt / SpringAiDiscussionProvider | 真实局部Payload、阶段提示、严格JSON与原生用量；不让模型执行工具 |
+| FullDiscussionAnalyzer | 原DISCUSSION步骤内依序执行、复用、映射当前引用，不自建任务系统 |
+| DiscussionDigestReuse / AnalysisScopeStore | 显式基准资格、指纹/响应/收费出处冻结、读取再验；进度来自原账本 |
+| ContentEvidenceSelector / AnalysisContextStore | 明确版本有界选段、原文定位、背景总上限和旧版本兼容 |
+| AnalysisRequestStore / AnalysisPreflight | 原项目锁与事务接受；范围/全部新调用预算核对，基准参与幂等 |
+| DiscussionReportService / SemanticReviewStore | 只读首屏/节点分页、导出、最新人工意见和冲突；不重跑模型 |
+| App / ProjectHome / ProjectWorkspace / style.css | 主次导航、统一样式、状态与响应式布局；复用原URL和页面组件 |
+| IntelligentAnalysis / ContentWorkspace | 问题优先、显式背景/基准、进度、报告及本地错误 |
+| DiscussionDigestPanel / ContentContextPicker / DiscussionBaselinePicker | 按需回看归并原文、分页选版本与基准，避免首屏加载全部结果 |
+
+常见问题：
+
+- 完整范围不可用：看父评论缺失、单目标祖先闭包、最多512节点和全部新调用预算；不会悄悄少处理尾部。
+- 基准不出现/拒绝：免费/旧协议/未完成、非同作品或执行范围不能选；问题、背景、模型/价格/超时等计划改变也会拒绝。相同字数或相似措辞不算可复用。
+- 内容0段：当前问题没有词法命中，或单完整段超8000字/时间范围无可用段；调整问题/窗口。无命中不是内容上不存在，不能据此判误解。
+- 复用后仍调用：全部REDUCE/FINAL都重做。新调用只算本任务实际出站，历史片费用仍归原任务。不要把新任务账本0片记录当缓存故障。
+- MODEL_DISCUSSION_INVALID/发送后未知：引用、结构、阶段/用量不合格仍可能已收费；查看原失败/执行记录。UNKNOWN不强制重试、不释放已发送预留。
+- 复核意见冲突：保留全部历史，摘要按每位复核者/对象最后一条计；出现SUPPORTED与UNSUPPORTED并存即冲突。不能自动多数表决为正确，也不能当准确率。
+
+最终回归：mvn verify（448=204单元＋244集成）；pnpm --dir frontend test（34）、format:check、build；python -m unittest discover -s tools -p "test_*.py"。主要新测试DiscussionDigestTest、DiscussionDigestWorkflowIT及SpringAiDiscussionProviderTest，覆盖尾片、引用、阶层、冻结、费用、取消、恢复和旧协议。中文注释说明文件/类/方法职责和步骤，Java格式统一、前端Prettier校验。
+
+HTTP/UI仅在delivery-108-137隔离范围、8081/5174与合成资料上验收；LOCAL_STUB报告只读展示用discussion-digest-it测试范围，worker/模型/付费/平台关闭。完成后按PID、启动时间和命令归属停止临时进程，恢复正式8080/5173。测试/构件/截图先备份，保留首轮失败与修复记录。最终日志round137-*与runtime/rounds108-137-delivery-summary.json记录实际Git/CI/进程身份；不生成源码ZIP、不删重要文件、不改凭据。
+
+UI报告还按需展示已有观点的有向回应关系（支持/反驳/澄清/质疑），分别标明原文明确、模型推断、未知；REPLY_TO仅是回复结构，不解释为支持或反对。材料选择自动定位提问，修订自动展开上传，避免操作后表单不可见。

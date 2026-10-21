@@ -63,7 +63,65 @@ public class DiscussionReportService {
       ((ObjectNode) projected.path("stance")).set("decisions", json.createArrayNode());
       projected.set("evidence", json.createArrayNode());
     }
+    if (original.path("processing").isObject()) {
+      ((ObjectNode) projected.path("processing")).set("nodes", json.createArrayNode());
+      projected.set("evidence", json.valueToTree(evidenceFor(original, List.of(original))));
+    }
     return new Overview(projected, coverage.get(projectId, requestId, request.snapshotId()), count);
+  }
+
+  /** 分层中间摘要只读分页，原文按本页引用及祖先闭包返回，不修改全局分母。 */
+  public record NodePage(
+      List<JsonNode> items,
+      long total,
+      int page,
+      int size,
+      long totalPages,
+      List<JsonNode> evidence) {}
+
+  /** 节点顺序固定，引用从原产物查找，不重新调用模型或数据库逐行分页冒充。 */
+  @Transactional(readOnly = true)
+  public NodePage nodes(String projectId, String requestId, int page, int size) {
+    if (page < 1 || page > 10000 || size < 1 || size > 10) throw bad("归并节点页码1～10000，每页1～10个");
+    var original = requests.artifact(projectId, requestId);
+    var nodes = original.path("processing").path("nodes");
+    if (!original.path("processing").isObject())
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "当前报告没有完整讨论归并节点");
+    int from = Math.min(nodes.size(), (page - 1) * size), to = Math.min(nodes.size(), from + size);
+    List<JsonNode> items = new ArrayList<>();
+    for (int n = from; n < to; n++) items.add(nodes.get(n));
+    return new NodePage(
+        List.copyOf(items),
+        nodes.size(),
+        page,
+        size,
+        (nodes.size() + size - 1) / size,
+        evidenceFor(original, items.stream().map(n -> n.path("summary")).toList()));
+  }
+
+  /** 只抽取业务图的引用，不能把中间摘要或原文里包含的字符串当新证据。 */
+  private List<JsonNode> evidenceFor(JsonNode original, List<JsonNode> graphs) {
+    Map<String, JsonNode> evidence = new LinkedHashMap<>();
+    original.path("evidence").forEach(n -> evidence.put(n.path("id").asText(), n));
+    Set<String> selected = new LinkedHashSet<>();
+    for (var graph : graphs)
+      for (String field : List.of("issues", "claims", "relations", "assessments"))
+        for (var item : graph.path(field))
+          for (var id : item.path("evidenceIds")) selected.add(id.asText());
+    for (String id : new ArrayList<>(selected)) {
+      var seen = new HashSet<String>();
+      String at = id;
+      while (at != null && seen.add(at)) {
+        var node = evidence.get(at);
+        if (node == null) throw new IllegalStateException("Published evidence missing");
+        selected.add(at);
+        at =
+            node.path("parentCommentId").isTextual() ? node.path("parentCommentId").asText() : null;
+      }
+    }
+    return evidence.values().stream()
+        .filter(n -> selected.contains(n.path("id").asText()))
+        .toList();
   }
 
   /** 1、校验过滤/分页；2、保留原决策顺序筛选；3、抽取本页证据及完整父链；4、附原全局统计。 */
@@ -125,11 +183,31 @@ public class DiscussionReportService {
   /** JSON导出含完整原产物和来源投影，Markdown按相同结果生成；任何格式都不触发新调用。 */
   @Transactional(readOnly = true)
   public String export(String projectId, String requestId, String format) {
-    if (!Set.of("json", "markdown").contains(format == null ? "" : format))
+    if (!Set.of("json", "markdown", "review-json").contains(format == null ? "" : format))
       throw bad("报告格式只能是json或markdown");
     var request = requests.get(projectId, requestId);
     var original = requests.artifact(projectId, requestId);
     var source = coverage.get(projectId, requestId, request.snapshotId());
+    if (format.equals("review-json")) {
+      ObjectNode packet = json.createObjectNode();
+      packet.put("schemaVersion", "argument-review-packet-v1");
+      packet.put("requestId", requestId);
+      packet.put(
+          "artifactSha256",
+          io.echoinsight.material.ReferenceMaterialStore.hash(original.toString()));
+      packet.put("independentQualityProven", false);
+      packet.put("status", "DRAFT");
+      packet.put("note", "含模型预测的人工复核资料包，不是独立金标准，不得据此宣称准确率。材料可能含用户原文，默认仅下载到本机。");
+      packet.set("artifact", original);
+      packet.set("sourceCoverage", json.valueToTree(source));
+      packet.set("context", json.valueToTree(requests.context(projectId, requestId)));
+      packet.set("annotations", json.createArrayNode());
+      try {
+        return json.writerWithDefaultPrettyPrinter().writeValueAsString(packet);
+      } catch (java.io.IOException e) {
+        throw new IllegalStateException(e);
+      }
+    }
     if (format.equals("json")) {
       ObjectNode wrapper = json.createObjectNode();
       wrapper.set("artifact", original);
@@ -146,6 +224,13 @@ public class DiscussionReportService {
     line(out, "模式", original.path("sourceMode").asText());
     line(out, "请求", requestId);
     line(out, "快照", request.snapshotId());
+    if (original.path("processing").isObject()) {
+      out.append("\n## 完整讨论归并范围\n\n");
+      line(out, "分片", original.path("processing").path("mapCount").asText());
+      line(out, "归并", original.path("processing").path("reductionCount").asText());
+      line(out, "复用分片", original.path("processing").path("reuse").path("reusedChunks").asText("0"));
+      out.append("逐片压缩可能遗漏/误读，完整输入处理不等于语义质量已验证。\n");
+    }
     out.append("\n## 来源与处理范围\n\n");
     line(out, "来源诊断", source.frozen() ? "接受时已冻结" : "历史请求回溯；并非接受时记录");
     line(out, "保存评论", Integer.toString(source.coverage().savedComments()));

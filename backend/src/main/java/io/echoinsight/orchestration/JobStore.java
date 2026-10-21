@@ -533,7 +533,8 @@ public class JobStore {
             "discussion-artifact-v3",
             "discussion-artifact-v4-context",
             "discussion-artifact-v5-stance",
-            "discussion-artifact-v6-stance")
+            "discussion-artifact-v6-stance",
+            "discussion-artifact-v7-digest")
         .contains(schemaVersion))
       throw new IllegalArgumentException("Unsupported artifact schema version");
     tx.executeWithoutResult(

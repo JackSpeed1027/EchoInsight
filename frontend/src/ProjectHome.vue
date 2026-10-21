@@ -80,17 +80,23 @@ onUnmounted(() => {
       <div>
         <p class="eyebrow">WORKSPACE</p>
         <h1 id="projects-title">我的项目</h1>
-        <p>把相关作品和资料放在一起，保留每一次分析与证据。</p>
+        <p>从作品、评论或一份字幕出发，让每个结论都能回到原文。</p>
       </div>
       <button class="primary" @click="openCreate">＋ 新建项目</button>
     </div>
-    <div class="workspace-note">
-      <div class="note-icon">↗</div>
+    <div class="workspace-intro" aria-label="使用步骤">
       <div>
-        <strong>从一个具体问题开始</strong>
-        <p>例如“这个合集的观众在讨论什么？” 创建项目后添加资料，再查看分析。</p>
+        <span>01</span><strong>整理资料</strong>
+        <p>作品、评论、文本和字幕，按项目与版本保存。</p>
       </div>
-      <span class="badge">本机工作空间</span>
+      <div>
+        <span>02</span><strong>说出问题</strong>
+        <p>用自然语言提问，核对范围后再开始分析。</p>
+      </div>
+      <div>
+        <span>03</span><strong>回看依据</strong>
+        <p>查看观点与原文，补充资料后继续追问或更新。</p>
+      </div>
     </div>
     <div class="section-toolbar">
       <h2>

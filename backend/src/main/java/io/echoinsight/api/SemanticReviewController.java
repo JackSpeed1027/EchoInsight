@@ -27,6 +27,13 @@ public class SemanticReviewController {
     return ResponseEntity.status(201).body(store.create(projectId, requestId, key, input));
   }
 
+  /** 阅读意见覆盖及分歧，不是模型质量评分。 */
+  @GetMapping("/summary")
+  public SemanticReviewStore.Summary summary(
+      @PathVariable String projectId, @PathVariable String requestId) {
+    return store.summary(projectId, requestId);
+  }
+
   /** 历史仅查询明确请求，不产生模型费用。 */
   @GetMapping
   public ProjectStore.Page<SemanticReviewStore.Review> list(

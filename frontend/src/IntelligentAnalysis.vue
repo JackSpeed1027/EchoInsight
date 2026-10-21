@@ -1,6 +1,18 @@
 <!-- 文件职责：提供项目内自然语言分析入口、请求历史和证据化讨论结果，不暴露模型或工具选择。 -->
 <script setup lang="ts">
 import TaskControlPanel from './TaskControlPanel.vue'
+import ContentContextPicker from './ContentContextPicker.vue'
+import DiscussionBaselinePicker from './DiscussionBaselinePicker.vue'
+import DiscussionDigestPanel from './DiscussionDigestPanel.vue'
+import {
+  contentChoiceBody,
+  digestProgressText,
+  type ContentChoice,
+  type ContentBinding,
+  type DigestProgress,
+  type DigestProcessing,
+  type DigestReceipt,
+} from './discussionDigest'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import StanceResults from './StanceResults.vue'
 import ContinuationPanel from './ContinuationPanel.vue'
@@ -39,6 +51,7 @@ type RequestItem = {
 }
 type Artifact = {
   artifactId: string
+  processing?: DigestProcessing | null
   instruction: string
   title: string
   sourceType: string
@@ -70,6 +83,7 @@ type Artifact = {
     toClaimId: string
     type: string
     semanticStatus: string
+    evidenceIds?: string[]
   }>
   assessments: Array<{
     issueId: string
@@ -87,6 +101,8 @@ type Artifact = {
     title?: string | null
     startMs?: number | null
     endMs?: number | null
+    startChar?: number | null
+    endChar?: number | null
   }>
   context?: {
     sentToModel: boolean
@@ -104,6 +120,7 @@ type ContextView = {
   fingerprint: string | null
   selection: {
     retrieval?: { materialId: string; strategy: string; matchedSegments: number } | null
+    content?: ContentBinding | null
     transcriptRequested: boolean
     references: Array<{ id: string; title: string }>
     sources: Array<{
@@ -113,6 +130,8 @@ type ContextView = {
       text: string
       startMs: number | null
       endMs: number | null
+      startChar?: number | null
+      endChar?: number | null
     }>
   } | null
 }
@@ -141,6 +160,7 @@ type Progress = {
   completedComments: number
   targetComments: number
   published: boolean
+  processing?: DigestProgress | null
 }
 type Preview = {
   sourceCoverage: SourceCoverage
@@ -154,6 +174,8 @@ type Preview = {
   requiresPartialConsent: boolean
   fullAnalysisAvailable: boolean
   notes: string[]
+  content?: ContentBinding | null
+  reuse?: DigestReceipt | null
 }
 type FailureDetail = {
   errorCode: string | null
@@ -161,7 +183,9 @@ type FailureDetail = {
   feeUncertain: boolean
   canRetry: boolean
 }
-const analysisScope = ref('AUTO')
+const contentChoice = ref<ContentChoice>({ materialId: '', from: '', to: '' })
+const baselineRequestId = ref('')
+const analysisScope = ref('FULL')
 const confirmFullScope = ref(false)
 const progress = ref<Progress | null>(null)
 const proposition = ref('')
@@ -196,6 +220,8 @@ async function loadPreview() {
           includeTranscript: includeTranscript.value,
           transcriptMaterialId: transcriptMaterialId.value || undefined,
           referenceIds: referenceIds.value,
+          ...contentChoiceBody(contentChoice.value),
+          baselineRequestId: baselineRequestId.value || undefined,
         }),
       },
     )
@@ -257,10 +283,37 @@ function goalChanged() {
   confirmFullScope.value = false
   void loadPreview()
 }
+/** 显式基准沿用原问题，取消选择后才允许换问题，服务器仍重新核验。 */
+function baselineChosen(item: { id: string; instruction: string }) {
+  instruction.value = item.instruction
+  proposition.value = ''
+  analysisScope.value = 'FULL'
+  goalChanged()
+}
+/** 清空基准需要重新预检；选择时由chosen回调一次性沿用问题，避免旧问题多发一次预检。 */
+function baselineChanged(id: string) {
+  baselineRequestId.value = id
+  if (!id) goalChanged()
+}
+/** 背景改动重新核对，不自动取消基准以免悄悄变成一次全新付费分析。 */
+function contentChanged(value: ContentChoice) {
+  contentChoice.value = value
+  goalChanged()
+}
+/** 范围改为有限或命题时取消普通讨论基准。 */
+function scopeChanged() {
+  if (analysisScope.value !== 'FULL') baselineRequestId.value = ''
+  goalChanged()
+}
+/** 示例只填入问题并做只读范围预检；不会提交任务，已选基准时禁止覆盖原问题。 */
+function useExample(value: string) {
+  if (baselineRequestId.value || submitting.value) return
+  instruction.value = value
+  instructionChanged()
+}
 /** 原话改变后先清除上次补充标准，避免旧命题与新命题冲突导致页面无法纠正。 */
 function instructionChanged() {
   proposition.value = ''
-  analysisScope.value = 'AUTO'
   goalChanged()
 }
 let generation = 0
@@ -283,12 +336,14 @@ async function load() {
   preview.value = null
   previewGeneration++
   proposition.value = ''
-  analysisScope.value = 'AUTO'
+  analysisScope.value = 'FULL'
   confirmFullScope.value = false
   progress.value = null
   referenceIds.value = []
   includeTranscript.value = false
   transcriptMaterialId.value = ''
+  contentChoice.value = { materialId: '', from: '', to: '' }
+  baselineRequestId.value = ''
   sourceCoverage.value = null
   stopPolling()
   try {
@@ -365,7 +420,7 @@ async function submit() {
     return
   }
   if (preview.value?.requiresPartialConsent && !partialConsent.value) {
-    error.value = '部分评论不会选入本次分析，请先确认有限输入范围；完整逐条分析尚未提供。'
+    error.value = '部分评论不会选入本次分析，请先确认有限输入范围；可改选全部已保存评论并核对费用。'
     submitting.value = false
     return
   }
@@ -378,6 +433,10 @@ async function submit() {
   try {
     const body: {
       transcriptMaterialId?: string
+      contentMaterialId?: string
+      contentFromMs?: number
+      contentToMs?: number
+      baselineRequestId?: string
       instruction: string
       snapshotId?: string
       includeTranscript: boolean
@@ -388,6 +447,8 @@ async function submit() {
       confirmFullScope: boolean
     } = {
       transcriptMaterialId: transcriptMaterialId.value || undefined,
+      ...contentChoiceBody(contentChoice.value),
+      baselineRequestId: baselineRequestId.value || undefined,
       instruction: instruction.value.trim(),
       includeTranscript: includeTranscript.value,
       referenceIds: [...referenceIds.value].sort(),
@@ -496,6 +557,13 @@ async function openRequest(item: RequestItem) {
       !transcriptMaterialId.value && (context.selection?.transcriptRequested || false)
     referenceIds.value = context.selection?.references.map((note) => note.id) || []
     activeContext.value = context
+    contentChoice.value = {
+      materialId: context.selection?.content?.materialId || '',
+      from:
+        context.selection?.content?.fromMs == null ? '' : context.selection.content.fromMs / 1000,
+      to: context.selection?.content?.toMs == null ? '' : context.selection.content.toMs / 1000,
+    }
+    baselineRequestId.value = ''
     await loadPreview()
     if (version !== generation || active.value?.id !== item.id) return
     await refreshActive()
@@ -538,6 +606,41 @@ function evidenceText(ids: string[]) {
   return artifact.value.evidence.filter((item) => expected.has(item.id))
 }
 
+/** 只读展示当前议题内有明确两端的关系，顺序固定为“前一观点对后一观点”，不猜缺失观点。 */
+function relationsForIssue(issueId: string) {
+  if (!artifact.value) return []
+  const claims = new Map(artifact.value.claims.map((claim) => [claim.id, claim]))
+  return artifact.value.relations.flatMap((relation) => {
+    const from = claims.get(relation.fromClaimId),
+      to = claims.get(relation.toClaimId)
+    return from?.issueId === issueId && to?.issueId === issueId
+      ? [{ ...relation, from: from.statement, to: to.statement }]
+      : []
+  })
+}
+/** “回复”仅是结构；明确表达/条件推断/未知分别呈现，不能把模型推断写成事实。 */
+function relationName(type: string, status: string) {
+  const types: Record<string, string> = {
+    SUPPORTS: '支持',
+    REBUTS: '反驳',
+    CLARIFIES: '澄清',
+    QUESTIONS: '质疑',
+    REPLY_TO: '回复',
+  }
+  const statuses: Record<string, string> = {
+    EXPLICIT: '原文明确表达',
+    INFERRED: '模型推断，需核对',
+    UNKNOWN: '语义关系待核对',
+  }
+  return {
+    type: types[type] || '关系待核对',
+    status:
+      type === 'REPLY_TO'
+        ? '只表示回复结构，不代表支持或反对'
+        : statuses[status] || '语义关系待核对',
+  }
+}
+
 /** 页面只翻译可控状态，不显示内部步骤名或供应商异常正文。 */
 function requestStatus(status: string) {
   const names: Record<string, string> = {
@@ -572,6 +675,8 @@ watch(
   snapshotId,
   () => {
     transcriptMaterialId.value = ''
+    contentChoice.value = { materialId: '', from: '', to: '' }
+    baselineRequestId.value = ''
     sourceCoverage.value = null
   },
   { flush: 'sync' },
@@ -594,7 +699,7 @@ onUnmounted(() => {
         <h2>直接说出你想了解什么</h2>
         <p>你负责提出问题，系统负责绑定资料、安排分析并给出可核查的原文依据。</p>
       </div>
-      <span class="source-badge">自然语言入口</span>
+      <span class="source-badge">问题驱动 · 原文可查</span>
     </div>
 
     <p v-if="loading" role="status">正在准备项目资料…</p>
@@ -603,169 +708,258 @@ onUnmounted(() => {
       <h2>还没有可以分析的资料</h2>
       <p>先到“资料与作品”导入一份评论资料，再回来直接提问。</p>
     </div>
-    <p class="scope-copy">
-      按你提出的问题整理议题、观点和理由，不默认给评论贴正负面。可针对明确命题逐条分析本次有限输入；可在预算及父语境边界内完整处理本快照；不等于平台全量。
+    <p class="analysis-intro">
+      围绕问题整理观点、回应与理由。支持或反对必须有明确命题，默认不贴正负面标签。
     </p>
-    <form v-if="!loading && materials.length" class="insight-composer" @submit.prevent="submit">
-      <label class="field" v-if="materials.length > 1">
-        本次分析哪份资料
-        <select v-model="snapshotId" required>
-          <option value="" disabled>请选择作品或资料版本</option>
-          <option v-for="item in materials" :key="item.snapshotId" :value="item.snapshotId">
-            {{ sourceName(item.sourceType) }} · {{ item.title }} · {{ item.commentCount }} 条评论
-          </option>
-        </select>
-      </label>
-      <div class="selected-material" v-else-if="selectedMaterial">
-        <span class="source-badge">{{ sourceName(selectedMaterial.sourceType) }}</span>
-        <strong>{{ selectedMaterial.title }}</strong>
-        <small>{{ selectedMaterial.commentCount }} 条评论</small>
-      </div>
-      <details class="background-options">
-        <summary>补充背景（可选）：字幕与参考资料</summary>
-        <label class="background-checkbox"
-          ><input
-            v-model="includeTranscript"
-            type="checkbox"
-            :disabled="submitting || !!transcriptMaterialId"
-          /><span>使用当前资料快照已有的字幕（不联网抓取；没有字幕会明确显示0段）</span></label
-        >
-        <TranscriptLibrary
-          v-if="snapshotId"
-          :project-id="projectId"
-          :snapshot-id="snapshotId"
-          :selected-id="transcriptMaterialId"
-          picker
-          @select="selectTranscript"
-        />
-        <ReferencePicker
-          :key="projectId"
-          :project-id="projectId"
-          :reference-ids="referenceIds"
-          @change="referenceIds = $event"
-        />
-        <p class="small">
-          提交时固定本次背景；字幕/参考不是评论。纯评论请求维持原流程，免费演示不会理解背景。
-        </p>
-      </details>
-      <SourceCoverageNotice
-        v-if="preview?.sourceCoverage"
-        :view="{ frozen: false, coverage: preview.sourceCoverage }"
-      />
-      <label class="field command-field">
-        <p v-if="selectedMaterial?.collectionId" class="scope-copy">
-          本次资料：{{
-            coverageName(selectedMaterial.sourceCompleteness)
-          }}。分析只对已保存评论负责。
-        </p>
-        你的分析要求
-        <textarea
-          v-model="instruction"
-          @change="instructionChanged"
-          maxlength="1000"
-          rows="5"
-          placeholder="例如：总结这个视频下面大家讨论问题的逻辑，整理主要观点，并判断谁的理由更充分。"
-        ></textarea>
-      </label>
-      <section
-        v-if="preview?.goal?.stanceRequested"
-        class="scope-preview"
-        aria-label="确认判断标准"
-      >
-        <h3>先明确支持或反对哪句话</h3>
-        <p>{{ preview.goal.explanation }}</p>
-        <p v-if="preview.goal.specification?.origin === 'USER_INSTRUCTION'">
-          本次命题：{{ preview.goal.specification.proposition }}
-        </p>
-        <label v-else class="field"
-          >请补充一个具体命题
-          <input
-            v-model="proposition"
-            maxlength="300"
-            placeholder="例如：这段剧情的因果关系自洽"
-            @change="goalChanged"
-            :disabled="submitting"
-          />
+    <details
+      v-if="!loading &amp;&amp; materials.length"
+      class="composer-disclosure"
+      :open="!artifact"
+    >
+      <summary>
+        {{ artifact ? '再提一个问题' : '新建分析' }}<span>选择资料 · 描述问题 · 确认范围</span>
+      </summary>
+      <form class="insight-composer" @submit.prevent="submit">
+        <label class="field" v-if="materials.length > 1">
+          本次分析哪份资料
+          <select v-model="snapshotId" required>
+            <option value="" disabled>请选择作品或资料版本</option>
+            <option v-for="item in materials" :key="item.snapshotId" :value="item.snapshotId">
+              {{ sourceName(item.sourceType) }} · {{ item.title }} · {{ item.commentCount }} 条评论
+            </option>
+          </select>
         </label>
-        <p class="small">
-          也可直接写：围绕命题「这段剧情的因果关系自洽」，分析哪些主张支持、反对或有条件成立。
-        </p>
-        <button type="button" :disabled="previewLoading || submitting" @click="loadPreview">
-          核对目标与范围
-        </button>
-      </section>
-      <label v-if="preview?.goal?.stanceRequested" class="field"
-        >本次评论范围
-        <select v-model="analysisScope" @change="goalChanged" :disabled="submitting">
-          <option value="AUTO">按原话识别范围</option>
-          <option value="PREVIEW">先看少量评论预览</option>
-          <option value="FULL">全部已保存评论</option>
-        </select>
-      </label>
-      <section class="scope-preview" aria-label="本次分析范围">
-        <h3>本次处理范围</h3>
-        <p v-if="previewLoading" role="status">正在核对资料范围，不会调用模型…</p>
-        <p v-if="previewError" class="error" role="alert">
-          {{ previewError }} <button type="button" @click="loadPreview">重新核对</button>
-        </p>
-        <template v-if="preview">
-          <p>
-            已保存{{ preview.savedComments }}条；模型规则可选{{
-              preview.selectedComments
-            }}条；未选入{{ preview.omittedComments }}条；缺失父引用{{
-              preview.missingParentCount
-            }}条。
+        <div class="selected-material" v-else-if="selectedMaterial">
+          <span class="source-badge">{{ sourceName(selectedMaterial.sourceType) }}</span>
+          <strong>{{ selectedMaterial.title }}</strong>
+          <small>{{ selectedMaterial.commentCount }} 条评论</small>
+        </div>
+        <SourceCoverageNotice
+          v-if="preview?.sourceCoverage"
+          :view="{ frozen: false, coverage: preview.sourceCoverage }"
+        />
+        <label class="field command-field">
+          <p v-if="selectedMaterial?.collectionId" class="scope-copy">
+            本次资料：{{
+              coverageName(selectedMaterial.sourceCompleteness)
+            }}。分析只对已保存评论负责。
           </p>
-          <p v-for="note in preview.notes" :key="note" class="small">{{ note }}</p>
-          <section v-if="preview.fullScope" aria-label="完整范围与费用核对">
-            <h4>全部已保存评论的处理计划</h4>
-            <p>
-              {{ preview.fullScope.targetComments }} 条目标 ·
-              {{ preview.fullScope.plannedBatches }} 批处理； 父语境只供理解，不重复统计。
-            </p>
-            <p v-if="preview.fullScope.unit === 'USD_NANOS'">
-              本地保守费用上界约
-              {{ (Math.ceil(preview.fullScope.maximumUnits / 1000) / 1000000).toFixed(6) }} USD；
-              是按固定单价和每片Token上限估算，不是供应商账单。
-            </p>
-            <FailureNotice
-              v-if="!preview.fullScope.available"
-              title="当前无法新建完整范围请求"
-              :code="preview.fullScope.reasonCode"
-            />
-            <label v-else class="background-checkbox"
-              ><input v-model="confirmFullScope" type="checkbox" :disabled="submitting" />
-              我已确认本次全部范围及费用估算上界；只覆盖当前已保存快照。</label
-            >
-          </section>
-          <label v-if="preview.requiresPartialConsent" class="background-checkbox"
-            ><input
-              type="checkbox"
-              v-model="partialConsent"
-              :disabled="submitting"
-            />我接受仅分析上述有限输入；本次不代表全部评论。</label
+          你的分析要求
+          <textarea
+            v-model="instruction"
+            @change="instructionChanged"
+            :readonly="!!baselineRequestId"
+            maxlength="1000"
+            rows="5"
+            placeholder="例如：总结这个视频下面大家讨论问题的逻辑，整理主要观点，并判断谁的理由更充分。"
+          ></textarea>
+        </label>
+        <div class="question-examples" aria-label="分析问题示例">
+          <span>试试这样问</span>
+          <button
+            type="button"
+            :disabled="submitting || !!baselineRequestId"
+            @click="useExample('总结评论中的主要分歧，分别说明理由和仍缺的证据')"
           >
-        </template>
-      </section>
-      <div class="composer-actions">
-        <span>{{ instruction.trim().length }} / 1000</span>
-        <button
-          class="primary"
-          type="submit"
-          :disabled="
-            submitting ||
-            !instruction.trim() ||
-            previewLoading ||
-            !preview ||
-            preview.goal?.needsProposition ||
-            (preview.fullScope && (!preview.fullScope.available || !confirmFullScope)) ||
-            (preview.requiresPartialConsent && !partialConsent)
-          "
+            主要分歧与理由
+          </button>
+          <button
+            type="button"
+            :disabled="submitting || !!baselineRequestId"
+            @click="
+              useExample('围绕命题「这段剧情的因果关系自洽」，分析支持、反对与有条件成立的主张')
+            "
+          >
+            围绕命题看立场
+          </button>
+        </div>
+        <details class="background-options">
+          <summary>补充背景（可选）：字幕与参考资料</summary>
+          <label class="background-checkbox"
+            ><input
+              v-model="includeTranscript"
+              type="checkbox"
+              :disabled="submitting || !!transcriptMaterialId"
+            /><span>使用当前资料快照已有的字幕（不联网抓取；没有字幕会明确显示0段）</span></label
+          >
+          <TranscriptLibrary
+            v-if="snapshotId"
+            :project-id="projectId"
+            :snapshot-id="snapshotId"
+            :selected-id="transcriptMaterialId"
+            picker
+            @select="selectTranscript"
+          />
+          <ContentContextPicker
+            v-if="!preview?.goal?.stanceRequested"
+            :key="'content-' + projectId"
+            :project-id="projectId"
+            :model-value="contentChoice"
+            :disabled="submitting"
+            @update:model-value="contentChanged"
+          />
+          <ReferencePicker
+            :key="projectId"
+            :project-id="projectId"
+            :reference-ids="referenceIds"
+            @change="referenceIds = $event"
+          />
+          <p class="small">
+            提交时固定本次背景；字幕/参考不是评论。纯评论请求维持原流程，免费演示不会理解背景。
+          </p>
+        </details>
+        <section
+          v-if="preview?.goal?.stanceRequested"
+          class="scope-preview"
+          aria-label="确认判断标准"
         >
-          {{ submitting ? '正在提交…' : '按上述范围分析' }}
-        </button>
-      </div>
-    </form>
+          <h3>先明确支持或反对哪句话</h3>
+          <p>{{ preview.goal.explanation }}</p>
+          <p v-if="preview.goal.specification?.origin === 'USER_INSTRUCTION'">
+            本次命题：{{ preview.goal.specification.proposition }}
+          </p>
+          <label v-else class="field"
+            >请补充一个具体命题
+            <input
+              v-model="proposition"
+              maxlength="300"
+              placeholder="例如：这段剧情的因果关系自洽"
+              @change="goalChanged"
+              :disabled="submitting"
+            />
+          </label>
+          <p class="small">
+            也可直接写：围绕命题「这段剧情的因果关系自洽」，分析哪些主张支持、反对或有条件成立。
+          </p>
+          <button type="button" :disabled="previewLoading || submitting" @click="loadPreview">
+            核对目标与范围
+          </button>
+        </section>
+        <label class="field"
+          >本次评论范围
+          <select v-model="analysisScope" @change="scopeChanged" :disabled="submitting">
+            <option value="AUTO">按原话识别范围</option>
+            <option value="PREVIEW">先看少量评论预览</option>
+            <option value="FULL">全部已保存评论</option>
+          </select>
+        </label>
+        <details
+          class="reuse-options"
+          v-if="snapshotId &amp;&amp; analysisScope === 'FULL' &amp;&amp; !preview?.goal?.stanceRequested"
+          :open="!!baselineRequestId"
+        >
+          <summary>沿用已有分析（可选）<span v-if="baselineRequestId"> · 已选择</span></summary>
+          <DiscussionBaselinePicker
+            v-if="snapshotId && analysisScope === 'FULL' && !preview?.goal?.stanceRequested"
+            :project-id="projectId"
+            :snapshot-id="snapshotId"
+            :model-value="baselineRequestId"
+            :disabled="submitting"
+            @chosen="baselineChosen"
+            @update:model-value="baselineChanged"
+          />
+          <p v-if="baselineRequestId" class="small">
+            已沿用基准问题；要换问题，请先选择“全部重新分析”。
+          </p>
+        </details>
+        <section class="scope-preview" aria-label="本次分析范围">
+          <h3>本次处理范围</h3>
+          <p v-if="previewLoading" role="status">正在核对资料范围，不会调用模型…</p>
+          <p v-if="previewError" class="error" role="alert">
+            {{ previewError }} <button type="button" @click="loadPreview">重新核对</button>
+          </p>
+          <template v-if="preview">
+            <p v-if="preview.mode === 'STRUCTURAL_DEMO'" class="mock-note">
+              当前是结构演示：只核对输入与处理计划，不调用模型、不产生模型费用，也不生成语义结论。
+            </p>
+            <p>
+              已保存{{ preview.savedComments }}条；模型规则可选{{
+                preview.selectedComments
+              }}条；未选入{{ preview.omittedComments }}条；缺失父引用{{
+                preview.missingParentCount
+              }}条。
+            </p>
+            <p v-if="preview.reuse" class="small">
+              本次确认可复用{{ preview.reuse.reusedChunks }}片；汇总仍重新执行，费用属于各自原任务。
+            </p>
+            <section v-if="preview.content" class="content-binding-summary">
+              <strong>对照“{{ preview.content.title }}”</strong>
+              <p>
+                所选范围{{ preview.content.eligibleSegments }}段，纳入{{
+                  preview.content.selectedSegments
+                }}段 / {{ preview.content.selectedChars }}字符。
+              </p>
+              <p v-if="!preview.content.selectedSegments" class="error">
+                本次没有可用内容原段；可调整问题或字幕范围，不能据此判断作者意图。
+              </p>
+              <details>
+                <summary>内容选择方式与缺口</summary>
+                <p v-for="note in preview.content.notes" :key="note" class="small">{{ note }}</p>
+              </details>
+            </section>
+            <details>
+              <summary>处理规则与资料边界</summary>
+              <p v-for="note in preview.notes" :key="note" class="small">{{ note }}</p>
+            </details>
+            <section v-if="preview.fullScope" aria-label="完整范围与费用核对">
+              <h4>全部已保存评论的处理计划</h4>
+              <p>
+                {{ preview.fullScope.targetComments }} 条目标 ·
+                {{ preview.fullScope.plannedBatches }}
+                {{
+                  preview.mode === 'STRUCTURAL_DEMO'
+                    ? '个计划节点（演示不执行）'
+                    : '次计划新调用（含汇总）'
+                }}；父语境只供理解，不重复统计。
+              </p>
+              <p v-if="preview.fullScope.unit === 'USD_NANOS'">
+                本地保守费用上界约
+                {{ (Math.ceil(preview.fullScope.maximumUnits / 1000) / 1000000).toFixed(6) }} USD；
+                是按固定单价和每片Token上限估算，不是供应商账单。
+              </p>
+              <FailureNotice
+                v-if="!preview.fullScope.available"
+                title="当前无法新建完整范围请求"
+                :code="preview.fullScope.reasonCode"
+              />
+              <label v-else class="background-checkbox"
+                ><input v-model="confirmFullScope" type="checkbox" :disabled="submitting" />
+                {{
+                  preview.mode === 'STRUCTURAL_DEMO'
+                    ? '我已确认本次结构演示范围；不执行语义分析。'
+                    : '我已确认本次全部范围及费用估算上界；只覆盖当前已保存快照。'
+                }}</label
+              >
+            </section>
+            <label v-if="preview.requiresPartialConsent" class="background-checkbox"
+              ><input
+                type="checkbox"
+                v-model="partialConsent"
+                :disabled="submitting"
+              />我接受仅分析上述有限输入；本次不代表全部评论。</label
+            >
+          </template>
+        </section>
+        <div class="composer-actions">
+          <span>{{ instruction.trim().length }} / 1000</span>
+          <button
+            class="primary"
+            type="submit"
+            :disabled="
+              submitting ||
+              !instruction.trim() ||
+              previewLoading ||
+              !preview ||
+              preview.goal?.needsProposition ||
+              (preview.fullScope && (!preview.fullScope.available || !confirmFullScope)) ||
+              (preview.requiresPartialConsent && !partialConsent)
+            "
+          >
+            {{ submitting ? '正在提交…' : '按上述范围分析' }}
+          </button>
+        </div>
+      </form>
+    </details>
 
     <section v-if="active" class="analysis-progress" aria-live="polite">
       <div>
@@ -790,15 +984,18 @@ onUnmounted(() => {
       aria-live="polite"
     >
       <h3>全部已保存评论的处理进度</h3>
-      <p>
+      <p v-if="progress.processing">{{ digestProgressText(progress.processing) }}</p>
+      <p v-else>
         已完成 {{ progress.completedComments }} / {{ progress.targetComments }} 条目标评论，
         {{ progress.completedBatches }} / {{ progress.plannedBatches }} 批。
       </p>
       <p>
         {{
           progress.published
-            ? '完整覆盖对账通过，结果已发布。'
-            : '分片完成量来自持久检查点；全部成功并对账后才发布，未完成部分没有立场结论。'
+            ? artifact?.sourceMode === 'STRUCTURAL_DEMO'
+              ? '结构演示已完成，未执行语义分析。'
+              : '结果已发布；完整输入处理不等于独立语义质量通过。'
+            : '进度来自持久检查点，全部成功后才发布；关闭页面不会停止后台任务。'
         }}
       </p>
     </section>
@@ -834,7 +1031,11 @@ onUnmounted(() => {
           <p>{{ artifact.instruction }}</p>
         </div>
         <span class="mode-badge">{{
-          artifact.sourceMode === 'STRUCTURAL_DEMO' ? '结构演示 · 未做语义判断' : '模型分析'
+          artifact.sourceMode === 'STRUCTURAL_DEMO'
+            ? '结构演示 · 未做语义判断'
+            : artifact.sourceMode === 'LOCAL_STUB'
+              ? '工程替身 · 非真实语义成绩'
+              : '模型分析'
         }}</span>
       </header>
       <div class="scope-strip">
@@ -851,16 +1052,30 @@ onUnmounted(() => {
         >
         <span v-if="artifact.scope.truncated">当前为有限展示</span>
         <span v-if="artifact.scope.selectedComments != null"
-          >已向模型发送 {{ artifact.scope.selectedComments }} 条（含父上下文）</span
+          >{{ artifact.processing ? '已处理范围（含复用）' : '已向模型发送' }}
+          {{ artifact.scope.selectedComments }} 条（含父上下文）</span
         >
       </div>
       <SourceCoverageNotice v-if="sourceCoverage" :view="sourceCoverage" />
-      <nav v-if="active" class="artifact-heading" aria-label="导出本次报告">
-        <a :href="requestUrl(active.id) + '/report/export?format=markdown'" download
-          >下载Markdown报告</a
-        ><a :href="requestUrl(active.id) + '/report/export?format=json'" download>下载JSON与证据</a>
+      <nav v-if="active" class="report-downloads" aria-label="导出本次报告">
+        <a :href="requestUrl(active.id) + '/report/export?format=markdown'" download>下载报告</a
+        ><a :href="requestUrl(active.id) + '/report/export?format=json'" download
+          >结构化数据与证据</a
+        >
+        <a :href="requestUrl(active.id) + '/report/export?format=review-json'" download
+          >复核资料包</a
+        >
       </nav>
-      <section v-if="artifact.context" class="surface context-scope">
+      <DiscussionDigestPanel
+        v-if="artifact.processing && active"
+        :key="'digest-' + active.id"
+        :project-id="projectId"
+        :request-id="active.id"
+        :processing="artifact.processing"
+        :source-mode="artifact.sourceMode"
+      />
+      <details v-if="artifact.context" class="surface context-scope">
+        <summary>本次背景与来源</summary>
         <h3>本次背景范围</h3>
         <p>
           {{
@@ -891,6 +1106,8 @@ onUnmounted(() => {
                   title: source.title,
                   startMs: source.startMs,
                   endMs: source.endMs,
+                  startChar: source.startChar,
+                  endChar: source.endChar,
                 })
               }}
             </h4>
@@ -900,7 +1117,7 @@ onUnmounted(() => {
             本次没有可用背景原文；没有自动补入其他资料。
           </p>
         </details>
-      </section>
+      </details>
       <StanceResults
         v-if="artifact.stance"
         :project-id="projectId"
@@ -929,6 +1146,26 @@ onUnmounted(() => {
             </details>
           </div>
         </div>
+        <details v-if="relationsForIssue(issue.id).length" class="argument-relations">
+          <summary>观点之间如何回应（{{ relationsForIssue(issue.id).length }}组）</summary>
+          <article
+            v-for="(relation, index) in relationsForIssue(issue.id)"
+            :key="index"
+            class="argument-relation"
+          >
+            <p>{{ relation.from }}</p>
+            <strong>{{ relationName(relation.type, relation.semanticStatus).type }} ↓</strong>
+            <p>{{ relation.to }}</p>
+            <small>{{ relationName(relation.type, relation.semanticStatus).status }}</small>
+            <details v-if="relation.evidenceIds?.length">
+              <summary>关系的原文依据</summary>
+              <blockquote v-for="quote in evidenceText(relation.evidenceIds)" :key="quote.id">
+                <small>{{ evidenceSource(quote) }}</small>
+                <p>{{ quote.text }}</p>
+              </blockquote>
+            </details>
+          </article>
+        </details>
         <div
           class="assessment-box"
           v-for="assessment in artifact.assessments.filter((item) => item.issueId === issue.id)"
@@ -966,7 +1203,7 @@ onUnmounted(() => {
         :request-id="active.id"
         :artifact="artifact"
       />
-      <details class="analysis-limits" open>
+      <details class="analysis-limits">
         <summary>当前结果能说明什么</summary>
         <ul>
           <li v-for="item in artifact.limitations" :key="item">{{ item }}</li>
