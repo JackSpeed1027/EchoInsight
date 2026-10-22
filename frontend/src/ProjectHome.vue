@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { readApi, type Page, type Project } from './projectApi'
+import MaterialArchivePanel from './MaterialArchivePanel.vue'
 const emit = defineEmits<{ open: [id: string] }>()
 const data = ref<Page<Project> | null>(null)
 const error = ref('')
@@ -84,6 +85,10 @@ onUnmounted(() => {
       </div>
       <button class="primary" @click="openCreate">＋ 新建项目</button>
     </div>
+    <details class="advanced-options">
+      <summary>从资料归档恢复项目</summary>
+      <MaterialArchivePanel @open="emit('open', $event)" />
+    </details>
     <div class="workspace-intro" aria-label="使用步骤">
       <div>
         <span>01</span><strong>整理资料</strong>

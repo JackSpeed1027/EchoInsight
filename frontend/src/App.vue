@@ -7,6 +7,7 @@ import StandaloneAnalysis from './StandaloneAnalysis.vue'
 import JobHistory from './JobHistory.vue'
 import ImportPanel from './ImportPanel.vue'
 import MediaCrawlerImport from './MediaCrawlerImport.vue'
+import UnsavedChangesNotice from './UnsavedChangesNotice.vue'
 
 /** URL 只保存导航身份，不保存正文、凭据、目标配置或完整分析状态。 */
 type Route = {
@@ -55,6 +56,8 @@ function readRoute(): Route {
       'content',
       'history',
       'goal',
+      'quality',
+      'archive',
       'import',
       'analysis',
     ].includes(tab)
@@ -65,6 +68,9 @@ function readRoute(): Route {
   }
 }
 const route = ref<Route>(readRoute())
+const projectDirty = ref(false)
+let acceptedRouteUrl = window.location.href
+const pendingRoute = ref<string | null>(null)
 const connected = ref(false),
   checking = ref(false),
   mode = ref(''),
@@ -74,12 +80,18 @@ const legacyTab = ref('history'),
 
 /** 新页面记录浏览器历史，前进/返回恢复同一项目或报告，不创建新的业务任务。 */
 function navigate(values: Record<string, string | undefined>) {
+  // 核对草稿只在用户明确保存时入库；离开前提示，取消则保持表单与当前路由。
   const url = new URL(window.location.href)
   url.search = ''
   url.hash = ''
   for (const [key, value] of Object.entries(values)) if (value) url.searchParams.set(key, value)
+  if (projectDirty.value) {
+    pendingRoute.value = url.href
+    return
+  }
   window.history.pushState(null, '', url)
   route.value = readRoute()
+  acceptedRouteUrl = window.location.href
   window.scrollTo({ top: 0 })
 }
 /** 选择项目默认打开资料页面，UUID 不作为主要导航文本。 */
@@ -141,8 +153,25 @@ function budgetUsd(value: string) {
   const amount = Number(value)
   return Number.isFinite(amount) ? amount.toString() : value
 }
-/** 浏览器返回不追加新的历史项，旧请求由子页面卸载保护。 */
+/** 明确放弃本次未保存修改后才提交应用内导航；已保存记录不受影响。 */
+function leaveWithUnsavedChanges() {
+  if (!pendingRoute.value) return
+  window.history.pushState(null, '', pendingRoute.value)
+  pendingRoute.value = null
+  projectDirty.value = false
+  route.value = readRoute()
+  acceptedRouteUrl = window.location.href
+  window.scrollTo({ top: 0 })
+}
+/** 返回操作先保持表单与原地址，再以页面提示决定是否去目标页。 */
 function pop() {
+  if (projectDirty.value) {
+    const destination = window.location.href
+    window.history.pushState(null, '', acceptedRouteUrl)
+    pendingRoute.value = destination
+    return
+  }
+  acceptedRouteUrl = window.location.href
   route.value = readRoute()
 }
 onMounted(() => {
@@ -192,6 +221,11 @@ onUnmounted(() => window.removeEventListener('popstate', pop))
         <span>EchoInsight · 本地工作台</span>
       </div>
     </aside>
+    <UnsavedChangesNotice
+      v-if="pendingRoute"
+      @stay="pendingRoute = null"
+      @leave="leaveWithUnsavedChanges"
+    />
     <main class="app-main">
       <header class="app-header">
         <div class="breadcrumb">
@@ -238,6 +272,8 @@ onUnmounted(() => window.removeEventListener('popstate', pop))
           @insight="openInsight"
           @request="openTaskRequest"
           @content="openContent"
+          @project="openProject"
+          @dirty="projectDirty = $event"
         />
         <StandaloneAnalysis
           v-else-if="route.view === 'report' && route.job"

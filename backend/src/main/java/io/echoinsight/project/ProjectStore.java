@@ -15,14 +15,18 @@ import org.springframework.web.server.ResponseStatusException;
 public class ProjectStore {
   private final JdbcTemplate db;
   private final String workspace;
+  // 讨论任务按原请求所属项目计数；恢复项目不继承回执提交前的全局旧反馈记录。
   private static final String SUMMARY =
       """
       SELECT p.id,p.name,p.analysis_goal,DATE_FORMAT(p.created_at,'%Y-%m-%d %H:%i:%s') created_at,
        (SELECT COUNT(*) FROM project_snapshot ps WHERE ps.project_id=p.id) snapshot_count,
        (SELECT COUNT(DISTINCT s.content_id) FROM project_snapshot ps
         JOIN data_snapshot s ON s.id=ps.snapshot_id WHERE ps.project_id=p.id) work_count,
-       (SELECT COUNT(*) FROM project_snapshot ps JOIN analysis_job j ON j.snapshot_id=ps.snapshot_id
-        WHERE ps.project_id=p.id)+(SELECT COUNT(*) FROM content_analysis_input ci WHERE ci.project_id=p.id) job_count,
+       (SELECT COUNT(*) FROM analysis_request ar WHERE ar.project_id=p.id)
+       +(SELECT COUNT(*) FROM project_snapshot ps JOIN analysis_job j ON j.snapshot_id=ps.snapshot_id
+        WHERE ps.project_id=p.id AND j.job_kind='FEEDBACK'
+        AND NOT EXISTS(SELECT 1 FROM project_material_restore mr WHERE mr.project_id=p.id AND j.created_at<=mr.created_at))
+       +(SELECT COUNT(*) FROM content_analysis_input ci WHERE ci.project_id=p.id) job_count,
        (SELECT COUNT(*) FROM content_material cm WHERE cm.project_id=p.id) content_material_count
       FROM business_project p
       """;
@@ -41,6 +45,7 @@ public class ProjectStore {
       JOIN content_item c ON c.id=s.content_id
       LEFT JOIN analysis_job j ON j.id=(
        SELECT x.id FROM analysis_job x WHERE x.snapshot_id=s.id AND x.job_kind='FEEDBACK'
+        AND NOT EXISTS(SELECT 1 FROM project_material_restore mr WHERE mr.project_id=ps.project_id AND x.created_at<=mr.created_at)
        ORDER BY x.created_at DESC,x.id DESC LIMIT 1)
       LEFT JOIN analysis_report r ON r.job_id=j.id
       LEFT JOIN source_collection_batch cb ON cb.id=(

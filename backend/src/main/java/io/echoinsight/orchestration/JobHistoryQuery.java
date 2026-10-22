@@ -61,7 +61,8 @@ public class JobHistoryQuery {
       where +=
           " AND EXISTS(SELECT 1 FROM project_snapshot ps JOIN business_project p ON"
               + " p.id=ps.project_id WHERE ps.snapshot_id=j.snapshot_id AND p.id=? AND"
-              + " p.workspace_scope=?)";
+              + " p.workspace_scope=? AND NOT EXISTS(SELECT 1 FROM project_material_restore mr"
+              + " WHERE mr.project_id=p.id AND j.created_at<=mr.created_at))";
       args.add(projectId);
       args.add(projects.workspace());
     }

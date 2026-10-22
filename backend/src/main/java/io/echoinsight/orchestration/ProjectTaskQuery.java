@@ -89,8 +89,9 @@ public class ProjectTaskQuery {
       List<String> notes) {}
 
   /**
-   * 仅构造服务端固定SQL片段。1、约束项目与执行范围；2、排除其他项目讨论；3、反馈任务按挂载成员核对。 UNION ALL保留两个类型的身份，不能将碰巧相同的UUID当成同一任务。
-   * MySQL5.7会让JSON字符串与ASCII URL的UNION采用ASCII；两侧标题明确转utf8mb4，防止中文变问号。
+   * 仅构造服务端固定SQL片段。1、约束项目与执行范围；2、排除其他项目讨论；3、反馈任务按挂载成员核对并排除资料恢复前的旧全局任务。 UNION
+   * ALL保留两个类型的身份，不能将碰巧相同的UUID当成同一任务。 MySQL5.7会让JSON字符串与ASCII
+   * URL的UNION采用ASCII；两侧标题明确转utf8mb4，防止中文变问号。
    */
   private String source() {
     return """
@@ -105,7 +106,8 @@ public class ProjectTaskQuery {
     LEFT JOIN analysis_report r ON r.job_id=j.id
     WHERE j.execution_scope=? AND ((j.job_kind='DISCUSSION' AND ar.project_id=?)
       OR (j.job_kind='FEEDBACK' AND EXISTS(SELECT 1 FROM project_snapshot ps
-        WHERE ps.project_id=? AND ps.snapshot_id=j.snapshot_id)))
+        WHERE ps.project_id=? AND ps.snapshot_id=j.snapshot_id
+        AND NOT EXISTS(SELECT 1 FROM project_material_restore mr WHERE mr.project_id=ps.project_id AND j.created_at<=mr.created_at))))
     UNION ALL
     SELECT 'COLLECTION',b.id,b.status,CONVERT(b.canonical_url USING utf8mb4),NULL,b.snapshot_id,NULL,NULL,b.created_at,
       b.attempts,b.last_error_code,0,'COLLECTION',NULL

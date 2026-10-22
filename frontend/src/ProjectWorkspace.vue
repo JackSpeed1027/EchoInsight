@@ -22,6 +22,8 @@ import JobHistory from './JobHistory.vue'
 import IntelligentAnalysis from './IntelligentAnalysis.vue'
 import ProjectTaskCenter from './ProjectTaskCenter.vue'
 import ContentWorkspace from './ContentWorkspace.vue'
+import QualityReviewWorkbench from './QualityReviewWorkbench.vue'
+import MaterialArchivePanel from './MaterialArchivePanel.vue'
 const props = defineProps<{
   projectId: string
   tab: string
@@ -37,6 +39,8 @@ const emit = defineEmits<{
   insight: [snapshotId: string]
   request: [snapshotId: string, requestId: string]
   content: [jobId: string]
+  dirty: [value: boolean]
+  project: [id: string]
 }>()
 const project = ref<Project | null>(null)
 const materials = ref<Page<ProjectSnapshot> | null>(null)
@@ -133,6 +137,7 @@ watch(
 )
 onUnmounted(() => {
   generation++
+  emit('dirty', false)
 })
 </script>
 
@@ -203,7 +208,10 @@ onUnmounted(() => {
       </nav>
       <details class="project-more">
         <summary>
-          更多 <span v-if="['sets', 'history', 'goal', 'analysis'].includes(tab)">· 当前</span>
+          更多
+          <span v-if="['sets', 'history', 'goal', 'analysis', 'quality', 'archive'].includes(tab)"
+            >· 当前</span
+          >
         </summary>
         <nav aria-label="项目补充页面">
           <button :class="{ selected: tab === 'sets' }" @click="secondaryTab('sets', $event)">
@@ -214,6 +222,12 @@ onUnmounted(() => {
             @click="secondaryTab('history', $event)"
           >
             早期反馈报告
+          </button>
+          <button :class="{ selected: tab === 'archive' }" @click="secondaryTab('archive', $event)">
+            资料归档与恢复
+          </button>
+          <button :class="{ selected: tab === 'quality' }" @click="secondaryTab('quality', $event)">
+            质量验收（可选）
           </button>
           <button :class="{ selected: tab === 'goal' }" @click="secondaryTab('goal', $event)">
             项目目标
@@ -309,6 +323,17 @@ onUnmounted(() => {
         :project-id="projectId"
         :preferred-snapshot-id="snapshotId"
         :initial-request-id="requestId"
+      />
+      <QualityReviewWorkbench
+        v-else-if="tab === 'quality'"
+        :key="projectId"
+        :project-id="projectId"
+        @dirty="emit('dirty', $event)"
+      />
+      <MaterialArchivePanel
+        v-else-if="tab === 'archive'"
+        :project-id="projectId"
+        @open="emit('project', $event)"
       />
       <ManifestPanel v-else-if="tab === 'sets'" :key="projectId" :project-id="projectId" />
       <section v-else-if="tab === 'goal'" class="surface goal-surface">
