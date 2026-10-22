@@ -20,6 +20,7 @@ import ManifestPanel from './ManifestPanel.vue'
 import AnalysisPanel from './AnalysisPanel.vue'
 import JobHistory from './JobHistory.vue'
 import IntelligentAnalysis from './IntelligentAnalysis.vue'
+import AnalysisIntakeWorkbench from './AnalysisIntakeWorkbench.vue'
 import ProjectTaskCenter from './ProjectTaskCenter.vue'
 import ContentWorkspace from './ContentWorkspace.vue'
 import QualityReviewWorkbench from './QualityReviewWorkbench.vue'
@@ -29,6 +30,7 @@ const props = defineProps<{
   tab: string
   snapshotId?: string
   jobId?: string
+  intakeId?: string
   requestId?: string
   fresh?: boolean
 }>()
@@ -41,6 +43,7 @@ const emit = defineEmits<{
   content: [jobId: string]
   dirty: [value: boolean]
   project: [id: string]
+  intake: [id: string]
 }>()
 const project = ref<Project | null>(null)
 const materials = ref<Page<ProjectSnapshot> | null>(null)
@@ -185,9 +188,9 @@ onUnmounted(() => {
           资料与作品
         </button>
         <button
-          :class="{ selected: tab === 'insight' }"
-          :aria-current="tab === 'insight' ? 'page' : undefined"
-          @click="emit('tab', 'insight')"
+          :class="{ selected: tab === 'insight' || tab === 'start' }"
+          :aria-current="tab === 'insight' || tab === 'start' ? 'page' : undefined"
+          @click="emit('tab', 'start')"
         >
           智能分析
         </button>
@@ -317,6 +320,15 @@ onUnmounted(() => {
         v-else-if="tab === 'history'"
         :project-id="projectId"
         @open="(item) => emit('analysis', item.snapshotId, item.id)"
+      />
+      <AnalysisIntakeWorkbench
+        v-else-if="tab === 'start'"
+        :project-id="projectId"
+        :initial-intake-id="intakeId"
+        @saved="emit('intake', $event)"
+        @request="(snapshot, request) => emit('request', snapshot, request)"
+        @tasks="emit('tab', 'tasks')"
+        @advanced="emit('tab', 'insight')"
       />
       <IntelligentAnalysis
         v-else-if="tab === 'insight'"

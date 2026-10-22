@@ -17,6 +17,7 @@ type Route = {
   snapshot?: string
   job?: string
   request?: string
+  intake?: string
   fresh: boolean
 }
 /** 后端公开的安全运行摘要；响应刻意不包含密钥、供应商地址或账户余额。 */
@@ -48,10 +49,12 @@ function readRoute(): Route {
     project,
     job,
     request: p.get('request') || undefined,
+    intake: p.get('intake') || undefined,
     tab: [
       'materials',
       'sets',
       'insight',
+      'start',
       'tasks',
       'content',
       'history',
@@ -115,6 +118,10 @@ function openAnalysis(snapshot: string, job?: string, fresh?: boolean) {
 /** 从资料卡片进入自然语言入口，明确带上本次分析对象。 */
 function openInsight(snapshot: string) {
   navigate({ project: route.value.project, tab: 'insight', snapshot })
+}
+/** 恢复保存的问题身份，URL不保存原文或费用，不自动提交任务。 */
+function openIntake(id: string) {
+  navigate({ project: route.value.project, tab: 'start', intake: id || undefined })
 }
 /** 从任务中心恢复明确的原请求；浏览器返回仍可回到任务列表。 */
 function openTaskRequest(snapshot: string, request: string) {
@@ -265,12 +272,14 @@ onUnmounted(() => window.removeEventListener('popstate', pop))
           :snapshot-id="route.snapshot"
           :job-id="route.job"
           :request-id="route.request"
+          :intake-id="route.intake"
           :fresh="route.fresh"
           @back="navigate({})"
           @tab="openTab"
           @analysis="openAnalysis"
           @insight="openInsight"
           @request="openTaskRequest"
+          @intake="openIntake"
           @content="openContent"
           @project="openProject"
           @dirty="projectDirty = $event"
